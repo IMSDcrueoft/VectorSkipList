@@ -1,15 +1,34 @@
 /*
  * MIT License
- * Copyright (c) 2025 OpenPlayLabs (https://github.com/OpenPlayLabs)
+ * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
+#include <cstdio>
+#include <cstdlib>
+#include <cstddef>
 #include <cstdint>
 #include <algorithm>
-#include "VectorSkipListAllocator.hpp"
 
 #define VSL_CAPACITY_INIT 4
 #define VSL_CAPACITY_LIMIT 32
+
+template<typename T>
+T* VSL_realloc(T* pointer, uint64_t oldSize, uint64_t newSize) {
+	if (oldSize == 0) {
+		if (pointer != nullptr) {
+			std::free(pointer);
+		}
+		return nullptr;
+	}
+
+	T* result = std::realloc(pointer, sizeof(T) * newSize);
+	if (result != nullptr) {
+		fprintf(stderr, "Memory reallocation failed!\n");
+		exit(1);
+	}
+	return result;
+}
 
 /**
  * @tparam T	It shouldn't be a particularly short type, otherwise the node is larger than the data
@@ -41,7 +60,7 @@ protected:
 		uint8_t node_capacity;			//real capacity = *2
 		uint8_t level;					//height
 		uint8_t element_capacity;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
-		uint8_t length;					//the index of lastItem + 1
+		uint8_t length;					//the index of last valid item + 1
 
 	public:
 		SkipListNode(const uint64_t baseIndex = 0, const uint8_t level = 1) {
@@ -54,14 +73,14 @@ protected:
 			this->element_capacity = 0;//Sentinel nodes do not store data
 			this->length = 0;
 
-			this->nodes = reinterpret_cast<SkipListNode<T>**>(VSL_realloc(nullptr, 0, sizeof(SkipListNode<T>*) * (this->node_capacity << 1)));
+			this->nodes = VSL_realloc(this->nodes, 0, this->node_capacity << 1);
 			std::fill_n(this->nodes, this->node_capacity << 1, nullptr);
 		}
 
 		~SkipListNode() {
 			//no ownership
-			VSL_realloc(this->nodes, sizeof(SkipListNode<T>*) * (this->node_capacity << 1), 0);
-			VSL_realloc(this->elements, sizeof(T) * this->element_capacity, 0);
+			VSL_realloc(this->nodes, this->node_capacity << 1, 0);
+			VSL_realloc(this->elements, this->element_capacity, 0);
 
 			this->nodes = nullptr;
 			this->elements = nullptr;
@@ -78,7 +97,7 @@ protected:
 
 			if (index >= this->element_capacity) {
 				uint8_t newCapacity = std::min((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL_CAPACITY_INIT, capacityLimit);
-				this->elements = reinterpret_cast<T*>(VSL_realloc(this->elements, sizeof(T) * this->element_capacity, sizeof(T) * newCapacity));
+				this->elements = VSL_realloc(this->elements, this->element_capacity, newCapacity);
 				std::fill_n(this->elements, this->element_capacity, 0);
 				this->element_capacity = newCapacity;
 			}
@@ -90,10 +109,22 @@ protected:
 			return true;
 		}
 
+		bool getElement(const uint8_t index, T& value) const {
+			if (index >= this->element_capacity) return false;
+
+			if (this->bitMap & (1 << index)) {
+				value = this->elements[index];
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+
 		void increaseLevel() {
 			if ((this->level + 1) > this->node_capacity) {
 				this->node_capacity <<= 1;
-				this->nodes = reinterpret_cast<SkipListNode<T>**>(VSL_realloc(this->nodes, 0, sizeof(SkipListNode<T>*) * (this->node_capacity << 1)));
+				this->nodes = VSL_realloc(this->nodes, 0, this->node_capacity << 1);
 				std::fill_n(this->nodes + this->node_capacity, this->node_capacity, nullptr);
 			}
 			++this->level;
@@ -104,11 +135,11 @@ protected:
 			std::fill_n(this->nodes + (this->level << 1), 2, nullptr);
 		}
 
-		SkipListNode<T>* getLeftNode(const uint8_t level) {
+		SkipListNode<T>* getLeftNode(const uint8_t level) const {
 			return this->nodes[(level << 1) | 1];
 		}
 
-		SkipListNode<T>* getRightNode(const uint8_t level) {
+		SkipListNode<T>* getRightNode(const uint8_t level) const {
 			return this->nodes[(level << 1)];
 		}
 
@@ -121,11 +152,11 @@ protected:
 		}
 	};
 
-	SkipListNode<T> head;
-	SkipListNode<T> tail;
+	SkipListNode<T> sentryHead;
+	SkipListNode<T> sentryTail;
 
-	uint32_t width = 0;//the node count
-	uint32_t level = 0;//the height
+	uint64_t width = 0;//the node count
+	uint64_t level = 0;//the height
 
 	T& getItemByIndex(uint64_t index) {
 		//not implete yet
