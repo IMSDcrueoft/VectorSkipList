@@ -26,7 +26,7 @@
     <ClInclude Include="src\VectorSkipList.hpp">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\VectorSkipListAllocator.h">
+    <ClInclude Include="src\VectorSkipListAllocator.hpp">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

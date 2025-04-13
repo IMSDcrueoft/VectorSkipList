@@ -23,7 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\VectorSkipList.hpp" />
-    <ClInclude Include="src\VectorSkipListAllocator.h" />
+    <ClInclude Include="src\VectorSkipListAllocator.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
