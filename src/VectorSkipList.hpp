@@ -13,16 +13,16 @@
 #define VSL_CAPACITY_INIT 4
 #define VSL_CAPACITY_LIMIT 32
 
-template<typename T>
-T* VSL_realloc(T* pointer, uint64_t oldSize, uint64_t newSize) {
-	if (oldSize == 0) {
+template<typename Element>
+Element* VSL_realloc(Element* pointer, size_t oldCount, size_t newSize) {
+	if (oldCount == 0) {
 		if (pointer != nullptr) {
 			std::free(pointer);
 		}
 		return nullptr;
 	}
 
-	T* result = std::realloc(pointer, sizeof(T) * newSize);
+	Element* result = std::realloc(pointer, sizeof(Element) * newSize);
 	if (result != nullptr) {
 		fprintf(stderr, "Memory reallocation failed!\n");
 		exit(1);
@@ -73,6 +73,7 @@ protected:
 			this->element_capacity = 0;//Sentinel nodes do not store data
 			this->length = 0;
 
+			//allocate nodePtrs
 			this->nodes = VSL_realloc(this->nodes, 0, this->node_capacity << 1);
 			std::fill_n(this->nodes, this->node_capacity << 1, nullptr);
 		}
@@ -80,6 +81,7 @@ protected:
 		~SkipListNode() {
 			//no ownership
 			VSL_realloc(this->nodes, this->node_capacity << 1, 0);
+			//free elements
 			VSL_realloc(this->elements, this->element_capacity, 0);
 
 			this->nodes = nullptr;
@@ -92,9 +94,16 @@ protected:
 			this->length = 0;
 		}
 
+		/**
+		 * @param index 
+		 * @param value 
+		 * @param capacityLimit the capacityLimit,the struct itself don't know
+		 * @return 
+		 */
 		bool setElement(const uint8_t index, const T value, const uint8_t capacityLimit) {
 			if (index > capacityLimit || this->element_capacity > capacityLimit) return false;
 
+			//grow capacity
 			if (index >= this->element_capacity) {
 				uint8_t newCapacity = std::min((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL_CAPACITY_INIT, capacityLimit);
 				this->elements = VSL_realloc(this->elements, this->element_capacity, newCapacity);
@@ -102,6 +111,7 @@ protected:
 				this->element_capacity = newCapacity;
 			}
 
+			//set value and bitmap
 			this->elements[index] = value;
 			this->bitMap |= (1 << index);
 			this->length = std::max(this->length, index + 1);
@@ -109,16 +119,16 @@ protected:
 			return true;
 		}
 
+		/**
+		 * @param index 
+		 * @param value the reference of value
+		 * @return if the value is valid
+		 */
 		bool getElement(const uint8_t index, T& value) const {
 			if (index >= this->element_capacity) return false;
-
-			if (this->bitMap & (1 << index)) {
-				value = this->elements[index];
-				return true;
-			}
-			else {
-				return false;
-			}
+			//set value
+			value = this->elements[index];
+			return (this->bitMap & (1 << index));
 		}
 
 		void increaseLevel() {
