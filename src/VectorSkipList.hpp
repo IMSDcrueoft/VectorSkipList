@@ -4,11 +4,11 @@
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
-#include <cstdio>
 #include <cstdlib>
 #include <cstddef>
 #include <cstdint>
 #include <algorithm>
+#include <iostream>
 
 #define VSL_CAPACITY_INIT 4
 #define VSL_CAPACITY_LIMIT 32
@@ -24,7 +24,7 @@ Element* VSL_realloc(Element* pointer, size_t oldCount, size_t newSize) {
 
 	Element* result = std::realloc(pointer, sizeof(Element) * newSize);
 	if (result != nullptr) {
-		fprintf(stderr, "Memory reallocation failed!\n");
+		std::cerr << "Memory reallocation failed!\n";
 		exit(1);
 	}
 	return result;
@@ -134,7 +134,7 @@ protected:
 		void increaseLevel() {
 			if ((this->level + 1) > this->node_capacity) {
 				this->node_capacity <<= 1;
-				this->nodes = VSL_realloc(this->nodes, 0, this->node_capacity << 1);
+				this->nodes = VSL_realloc(this->nodes, this->node_capacity, this->node_capacity << 1);
 				std::fill_n(this->nodes + this->node_capacity, this->node_capacity, nullptr);
 			}
 			++this->level;
@@ -165,28 +165,49 @@ protected:
 	SkipListNode<T> sentryHead;
 	SkipListNode<T> sentryTail;
 
+	T invalid;//you need an invalid default value
+
 	uint64_t width = 0;//the node count
 	uint64_t level = 0;//the height
 
-	T& getItemByIndex(uint64_t index) {
-		//not implete yet
-
-		T val = 0;
-		return val;
+	//you must init,because 0 is invalid seed to xorshift
+	uint64_t randState = 0;
+	uint64_t xorshift64() {
+		this->randState ^= this->randState << 13;
+		this->randState ^= this->randState >> 7;
+		this->randState ^= this->randState << 17;
+		return this->randState;
 	}
 
+	SkipListNode<T>* findSkipListNode(const uint64_t index) const {
+		if (this->width > 0) {
+		}
+
+		return nullptr;
+	}
 public:
-	VectorSkipList() {
+	VectorSkipList(uint64_t seed, const T& invalid) {
+		this->invalid = invalid;
+
+		if (seed == 0) {
+			std::cerr << "Seed must be non-zero\n";
+			seed = UINT64_MAX;
+		}
+		this->randState = seed;
 	}
 
 	~VectorSkipList() {
 	}
 
-	T& operator[] (uint64_t index) {
-		return this->getItemByIndex(index);
+	bool hasElement(const uint64_t index) const {
+		return this->findSkipListNode(index) != nullptr;
 	}
 
-	const T& operator[] (uint64_t index) const {
-		return this->getItemByIndex(index);
+	T& getElement(const uint64_t index) const {
+		return this->invalid;
+	}
+
+	void setElement(const uint64_t index, const T& value) {
+
 	}
 };
