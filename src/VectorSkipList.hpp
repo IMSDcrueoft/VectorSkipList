@@ -231,48 +231,21 @@ namespace VSL {
 		T invalid;//you need an invalid default value
 
 		//check if need add level
-		void checkIncreaseLevel() {
-			if (this->width <= (1ULL << this->level)) return;
-
+		void increaseLevel(VSL::SkipListNode<T>* node) {
 			// 1. level up sentry
 			this->sentryHead.increaseLevel();
 			this->sentryTail.increaseLevel();
+			node->increaseLevel();
 			++this->level;
 
-			// 2. get nodes witch level == this->level - 1
-			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(0);
-			VSL::SkipListNode<T>* left = &this->sentryHead;
-
-			while (node->level < (this->level - 1)) {
-				node = node->getRightNode(0);
-			}
-
-			//at least one node
-			bool promoted = false;
-
-			while (node != &this->sentryTail) {
-				// 50% percent
-				if ((this->rng.next() & 1) || !promoted) {
-					node->increaseLevel();
-					// connect node
-					node->setLeftNode(this->level, left);
-					left->setRightNode(this->level, node);
-					left = node;
-
-					promoted = true;
-				}
-				node = node->getRightNode(this->level - 1);
-			}
-
-			//connect
-			left->setRightNode(this->level, &this->sentryTail);
-			this->sentryTail.setLeftNode(this->level, left);
+			this->sentryHead.setRightNode(this->level, node);
+			this->sentryTail.setLeftNode(this->level, node);
+			node->setLeftNode(this->level, &this->sentryHead);
+			node->setRightNode(this->level, &this->sentryTail);
 		}
 
 		//check if need sub level
-		void checkDecreaseLevel() {
-			if (this->width == 0 || this->width > (1ULL << this->level)) return;
-
+		void decreaseLevel() {
 			//level down all node that level == this.level
 			VSL::SkipListNode<T>* node = &this->sentryHead;
 
@@ -334,11 +307,12 @@ namespace VSL {
 				while (curLevel >= 0) {
 					auto next = node->getRightNode(curLevel);
 					// check next node, if it is nullptr, then go down a level
-					while (next != &this->sentryTail && next->baseIndex <= index) {
+					if (next != &this->sentryTail && next->baseIndex <= index) {
 						node = next;
-						next = node->getRightNode(curLevel);
 					}
-					--curLevel;
+					else {
+						--curLevel;
+					}
 				}
 
 				// now node is the maximum node with baseIndex <= index
@@ -363,14 +337,15 @@ namespace VSL {
 			if (this->width > 0) {
 				auto curLevel = this->level;
 
-				while (node != &this->sentryTail && curLevel >= 0) {
+				while (curLevel >= 0) {
 					auto next = node->getRightNode(curLevel);
 					// check next node, if it is nullptr, then go down a level
-					while (next != &this->sentryTail && next->baseIndex <= index) {
+					if (next != &this->sentryTail && next->baseIndex <= index) {
 						node = next;
-						next = node->getRightNode(curLevel);
 					}
-					--curLevel;
+					else {
+						--curLevel;
+					}
 				}
 
 				// now node is the maximum node with baseIndex <= index
@@ -396,7 +371,8 @@ namespace VSL {
 
 							delete node;
 							--this->width;
-							this->checkDecreaseLevel();
+							if (this->width == 0 || this->width > (1ULL << this->level)) return;
+							this->decreaseLevel();
 						}
 					}
 					return;
@@ -428,7 +404,8 @@ namespace VSL {
 			newNode->setElement(0, value);
 
 			++this->width;
-			checkIncreaseLevel();
+			if (this->width <= (1ULL << this->level)) return;
+			increaseLevel(newNode);
 		}
 
 		void printStructure() const {

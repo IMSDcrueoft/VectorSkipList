@@ -97,7 +97,7 @@ void test4() {
 	std::cout << "test5 passed!" << std::endl;
 }
 
-constexpr auto testCount = 1e5;
+constexpr auto testCount = 4e5;
 
 void test_performance_stdmap() {
 	const uint64_t N = testCount;
