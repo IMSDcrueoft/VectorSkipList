@@ -126,10 +126,11 @@ namespace VSL {
 		}
 
 		void increaseLevel() {
-			if ((this->level + 1) > this->node_capacity) {
-				this->node_capacity <<= 1;
-				this->nodes = VSL::_realloc(this->nodes, this->node_capacity, this->node_capacity << 1);
-				std::fill_n(this->nodes + this->node_capacity, this->node_capacity, nullptr);
+			if ((this->level + 1) >= this->node_capacity) {
+				uint8_t newCapacity = this->node_capacity << 1;
+				this->nodes = VSL::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
+				std::fill_n(this->nodes + (this->node_capacity << 1), this->node_capacity << 1, nullptr);
+				this->node_capacity = newCapacity;
 			}
 			++this->level;
 		}
@@ -239,11 +240,11 @@ namespace VSL {
 			++this->level;
 
 			// 2. get nodes witch level == this->level - 1
-			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(this->level - 1);
+			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(0);
 			VSL::SkipListNode<T>* left = &this->sentryHead;
 
 			while (node->level < (this->level - 1)) {
-				node = node->getRightNode(this->level - 1);
+				node = node->getRightNode(0);
 			}
 
 			//at least one node
@@ -270,7 +271,7 @@ namespace VSL {
 
 		//check if need sub level
 		void checkDecreaseLevel() {
-			if (this->width > (1ULL << this->level)) return;
+			if (this->width == 0 || this->width > (1ULL << this->level)) return;
 
 			//level down all node that level == this.level
 			VSL::SkipListNode<T>* node = &this->sentryHead;
@@ -301,7 +302,11 @@ namespace VSL {
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
 		VectorSkipList(const T& invalid, uint64_t seed) {
-			VectorSkipList::VectorSkipList(invalid);
+			this->invalid = invalid;
+
+			this->sentryHead.setRightNode(0, &this->sentryTail);
+			this->sentryTail.setLeftNode(0, &this->sentryHead);
+
 			rng.seed(seed);
 		}
 
@@ -411,11 +416,11 @@ namespace VSL {
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
-				while (left->level < i) left = left->getLeftNode(i);
+				while (left->level < i) left = left->getLeftNode(i - 1);
 				newNode->setLeftNode(i, left);
 				left->setRightNode(i, newNode);
 
-				while (right->level < i) left = left->getLeftNode(i);
+				while (right->level < i) right = right->getRightNode(i - 1);
 				newNode->setRightNode(i, right);
 				right->setLeftNode(i, newNode);
 			}
@@ -424,6 +429,27 @@ namespace VSL {
 
 			++this->width;
 			checkIncreaseLevel();
+		}
+
+		void printStructure() const {
+			std::cout << "SkipList Structure (level: " << this->level << ", width: " << this->width << ")\n";
+			for (int l = 0; l <= this->level; ++l) {
+				std::cout << "Level " << l << ": ";
+				const VSL::SkipListNode<T>* node = &this->sentryHead;
+				while (node) {
+					const VSL::SkipListNode<T>* right = node->getRightNode(l);
+					if (node == &this->sentryHead)
+						std::cout << "[HEAD]->";
+					else if (node == &this->sentryTail)
+						std::cout << "[TAIL]";
+					else
+						std::cout << "[" << node->baseIndex << "]->";
+
+					if (right == nullptr) break;
+					node = right;
+				}
+				std::cout << std::endl;
+			}
 		}
 	};
 }
