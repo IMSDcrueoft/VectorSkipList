@@ -8,6 +8,8 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+#include <chrono>
+#include <map>
 
 using namespace VSL;
 
@@ -16,7 +18,6 @@ void test1() {
 
 	// test insert
 	for (uint64_t i = 0; i < 10; ++i) {
-		skiplist.printStructure();
 		skiplist.setElement(i, i * 1.5);
 	}
 
@@ -25,28 +26,24 @@ void test1() {
 		double value = 0;
 		skiplist.getElement(i, value);
 		assert(value == i * 1.5);
-		std::cout << "Index " << i << " = " << value << std::endl;
 	}
 
 	// find not exist
 	double notfound = 123;
 	skiplist.getElement(100, notfound);
 	assert(std::isnan(notfound));
-	std::cout << "Index 100 = NaN? " << std::isnan(notfound) << std::endl;
 
 	// test delete
 	skiplist.setElement(5, std::nan(""));
 	double deleted = 0;
 	skiplist.getElement(5, deleted);
 	assert(std::isnan(deleted));
-	std::cout << "Index 5 deleted, value = NaN? " << std::isnan(deleted) << std::endl;
 
 	// range test
 	skiplist.setElement(31, 99.9);
 	double edge = 0;
 	skiplist.getElement(31, edge);
 	assert(edge == 99.9);
-	std::cout << "Index 31 = " << edge << std::endl;
 
 	std::cout << "test1 passed!" << std::endl;
 }
@@ -69,24 +66,7 @@ void test2() {
 	std::cout << "test2 passed!" << std::endl;
 }
 
-//void test3() {
-//	// Test overwriting existing elements
-//	auto none = "none";
-//	auto hello = "hello";
-//	auto world = "world";
-//
-//	VectorSkipList<const char**> skiplist(&none);
-//	skiplist.setElement(1, &hello);
-//	const char** value = nullptr;
-//	skiplist.getElement(1, value);
-//	assert(value == &hello);
-//	skiplist.setElement(1, &world);
-//	skiplist.getElement(1, value);
-//	assert(value == &world);
-//	std::cout << "test3 passed!" << std::endl;
-//}
-
-void test4() {
+void test3() {
 	// Test deletion and reinsertion
 	VectorSkipList<int> skiplist(-999);
 	skiplist.setElement(10, 42);
@@ -102,7 +82,7 @@ void test4() {
 	std::cout << "test4 passed!" << std::endl;
 }
 
-void test5() {
+void test4() {
 	// Test boundary conditions
 	VectorSkipList<double> skiplist(std::nan(""));
 	double value = 0;
@@ -117,12 +97,68 @@ void test5() {
 	std::cout << "test5 passed!" << std::endl;
 }
 
+constexpr auto testCount = 1e5;
+
+void test_performance_stdmap() {
+	const uint64_t N = testCount;
+	std::map<uint64_t, int> m;
+
+	auto start_insert = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) {
+		m[i] = static_cast<int>(i);
+	}
+	auto end_insert = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> insert_duration = end_insert - start_insert;
+	std::cout << "[std::map] Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
+
+	auto start_query = std::chrono::high_resolution_clock::now();
+	int sum = 0;
+	for (uint64_t i = 0; i < N; ++i) {
+		auto it = m.find(i);
+		int value = (it != m.end()) ? it->second : -1;
+		sum += value;
+	}
+	auto end_query = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> query_duration = end_query - start_query;
+	std::cout << "[std::map] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
+	std::cout << "[std::map] Query sum: " << sum << std::endl;
+}
+
+void test_performance() {
+	// Performance test: insert and query a large number of elements
+	const uint64_t N = testCount;
+	VectorSkipList<int> skiplist(-1);
+
+	// Insert test
+	auto start_insert = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) {
+		skiplist.setElement(i, static_cast<int>(i));
+	}
+	auto end_insert = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> insert_duration = end_insert - start_insert;
+	std::cout << "Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
+
+	// Query test
+	auto start_query = std::chrono::high_resolution_clock::now();
+	int sum = 0;
+	for (uint64_t i = 0; i < N; ++i) {
+		int value = 0;
+		skiplist.getElement(i, value);
+		sum += value;
+	}
+	auto end_query = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> query_duration = end_query - start_query;
+	std::cout << "[VSL] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
+	std::cout << "[VSL] Query sum: " << sum << std::endl;
+}
 // Call in main function
 int main() {
 	//test1();
 	//test2();
 	//test3();
-	test4();
-	test5();
+	//test4();
+
+	//test_performance_stdmap();
+	test_performance();
 	return 0;
 }
