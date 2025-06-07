@@ -16,13 +16,13 @@ namespace VSL {
 
 	template<typename T>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
-		if (oldCount == 0) {
+		if (newSize == 0) {
 			if (pointer != nullptr) std::free(pointer);
 			return nullptr;
-		}
+		} 
 
 		T* result = static_cast<T*>(std::realloc(pointer, sizeof(T) * newSize));
-		if (result != nullptr) {
+		if (result == nullptr) {
 			std::cerr << "Memory reallocation failed!\n";
 			exit(1);
 		}
@@ -43,10 +43,9 @@ namespace VSL {
 
 		uint64_t baseIndex;				//The array is offset by the index, which is almost unmodified
 		uint32_t bitMap;				//use bitMap to manage
-		uint8_t node_capacity;			//real capacity = *2
+		uint16_t node_capacity;			//real capacity = *2
 		uint8_t level;					//height
 		uint8_t element_capacity;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
-		uint8_t padding;				//no use
 
 	public:
 		SkipListNode(const uint64_t baseIndex = 0, const uint8_t level = 0) {
@@ -226,7 +225,7 @@ namespace VSL {
 		VSL::SkipListNode<T> sentryTail;
 
 		uint64_t width = 0;//the node count
-		uint64_t level = 0;//the height
+		int64_t level = 0;//the height
 
 		T invalid;//you need an invalid default value
 
