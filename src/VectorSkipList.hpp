@@ -82,7 +82,7 @@ namespace VSL {
 		 * @brief if the node is empty
 		 * @return
 		 */
-		bool isEmtpy() {
+		bool isEmpty() {
 			return this->bitMap == 0;
 		}
 
@@ -378,7 +378,7 @@ namespace VSL {
 						node->deleteElement(index - node->baseIndex);
 
 						//remove node
-						if (node->isEmtpy()) {
+						if (node->isEmpty()) {
 							VSL::SkipListNode<T>* left = nullptr;
 							VSL::SkipListNode<T>* right = nullptr;
 
