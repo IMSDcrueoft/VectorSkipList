@@ -96,7 +96,7 @@ namespace VSL {
 			if (index >= this->element_capacity) {
 				uint8_t newCapacity = std::min((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL::capacity_init, VSL::capacity_limit);
 				this->elements = VSL::_realloc(this->elements, this->element_capacity, newCapacity);
-				std::fill_n(this->elements, this->element_capacity, 0);
+				std::fill_n(this->elements + this->element_capacity, this->element_capacity, 0);
 				this->element_capacity = newCapacity;
 			}
 
