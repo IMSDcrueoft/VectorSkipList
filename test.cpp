@@ -5,7 +5,9 @@
 */
 #include "./src/VectorSkipList.hpp"
 
+#include <cmath>
+
 int main(int argCount, char* args[]) {
-	VectorSkipList<double> item();
-	return 0;
+    VSL::VectorSkipList<double> item(std::nan(""));
+    return 0;
 }
