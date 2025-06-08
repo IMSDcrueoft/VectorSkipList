@@ -23,7 +23,7 @@ namespace bits {
 	}
 
 	template<typename T>
-	static inline T& get(T& value, uint8_t bitIdx) noexcept {
+	static inline T get(T& value, uint8_t bitIdx) noexcept {
 		return (value >> bitIdx) & static_cast<T>(1);
 	}
 

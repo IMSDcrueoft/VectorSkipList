@@ -196,7 +196,7 @@ namespace vsl {
 	 */
 	template <typename T>
 	class VectorSkipList {
-	private:
+	protected:
 		vsl::Xoroshiro64StarStar rng;
 
 		vsl::SkipListNode<T> sentryHead;
@@ -256,6 +256,15 @@ namespace vsl {
 			}
 
 			--this->level;
+		}
+
+		/**
+		 * @brief 
+		 * @return 
+		 */
+		uint8_t getRandomLevel() {
+			const auto count = bits::ctz64(this->rng.next());
+			return (count <= this->level) ? count : this->level;
 		}
 	public:
 		/**
@@ -356,8 +365,7 @@ namespace vsl {
 
 						//remove node
 						if (node->isEmpty()) {
-							vsl::SkipListNode<T>* left = nullptr;
-							vsl::SkipListNode<T>* right = nullptr;
+							vsl::SkipListNode<T>* left = nullptr, * right = nullptr;
 
 							for (auto i = 0; i <= node->level; ++i) {
 								left = node->getLeftNode(i);
@@ -380,8 +388,7 @@ namespace vsl {
 			if (value == this->invalid) return;
 
 			//make node
-			const auto count = bits::ctz64(this->rng.next());
-			const auto level = (count <= this->level) ? count : this->level;
+			const auto level = this->getRandomLevel();
 			vsl::SkipListNode<T>* newNode = new vsl::SkipListNode<T>(index, level);
 
 			//connect

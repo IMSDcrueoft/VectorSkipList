@@ -189,6 +189,75 @@ void test_performance() {
 	std::cout << "[vsl] Random query sum: " << random_sum << std::endl;
 
 }
+
+void test_performance_random_stdmap() {
+	const uint64_t N = testCount;
+	const uint64_t deleteCount = static_cast<uint64_t>(N * 0.2);
+
+	// -------- std::map --------
+	std::map<uint64_t, int> m;
+
+	auto start_map_insert = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) m[i] = static_cast<int>(i);
+	auto end_map_insert = std::chrono::high_resolution_clock::now();
+
+	uint64_t seed = 11451419, a = 6364136223846793005ULL, c = 1;
+	auto start_map_delete = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < deleteCount; ++i) {
+		seed = seed * a + c;
+		m.erase(seed % N);
+	}
+	auto end_map_delete = std::chrono::high_resolution_clock::now();
+
+	seed = 1919810;
+	auto start_map_write_delete = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) {
+		seed = seed * a + c;
+		uint64_t idx = seed % N;
+		if (i % 2 == 0) m[idx] = static_cast<int>(i);
+		else m.erase(idx);
+	}
+	auto end_map_write_delete = std::chrono::high_resolution_clock::now();
+
+	std::cout << "[std::map] Insert " << N << " : " << (end_map_insert - start_map_insert).count() / 1e9 << "s\n";
+	std::cout << "[std::map] Delete " << deleteCount << " : " << (end_map_delete - start_map_delete).count() / 1e9 << "s\n";
+	std::cout << "[std::map] Write/Delete " << N << " : " << (end_map_write_delete - start_map_write_delete).count() / 1e9 << "s\n";
+}
+
+void test_performance_random() {
+	const uint64_t N = testCount;
+	const uint64_t deleteCount = static_cast<uint64_t>(N * 0.2);
+
+	// -------- VectorSkipList --------
+	VectorSkipList<int> skiplist(-1);
+
+	auto start_vsl_insert = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) skiplist.setElement(i, static_cast<int>(i));
+	auto end_vsl_insert = std::chrono::high_resolution_clock::now();
+
+	uint64_t seed = 11451419, a = 6364136223846793005ULL, c = 1;
+	auto start_vsl_delete = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < deleteCount; ++i) {
+		seed = seed * a + c;
+		skiplist.setElement(seed % N, -1);
+	}
+	auto end_vsl_delete = std::chrono::high_resolution_clock::now();
+
+	seed = 1919810;
+	auto start_vsl_write_delete = std::chrono::high_resolution_clock::now();
+	for (uint64_t i = 0; i < N; ++i) {
+		seed = seed * a + c;
+		uint64_t idx = seed % N;
+		if (i % 2 == 0) skiplist.setElement(idx, static_cast<int>(i));
+		else skiplist.setElement(idx, -1);
+	}
+	auto end_vsl_write_delete = std::chrono::high_resolution_clock::now();
+
+	std::cout << "[vsl] Insert " << N << " : " << (end_vsl_insert - start_vsl_insert).count() / 1e9 << "s\n";
+	std::cout << "[vsl] Delete " << deleteCount << " : " << (end_vsl_delete - start_vsl_delete).count() / 1e9 << "s\n";
+	std::cout << "[vsl] Write/Delete " << N << " : " << (end_vsl_write_delete - start_vsl_write_delete).count() / 1e9 << "s\n";
+}
+
 // Call in main function
 int main() {
 	test1();
@@ -198,5 +267,8 @@ int main() {
 
 	test_performance_stdmap();
 	test_performance();
+
+	test_performance_random_stdmap();
+	test_performance_random();
 	return 0;
 }
