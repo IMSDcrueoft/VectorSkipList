@@ -153,7 +153,7 @@ void test_performance() {
 	}
 	auto end_insert = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> insert_duration = end_insert - start_insert;
-	std::cout << "Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
+	std::cout << "[vsl] Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
 
 	// Query test
 	auto start_query = std::chrono::high_resolution_clock::now();
