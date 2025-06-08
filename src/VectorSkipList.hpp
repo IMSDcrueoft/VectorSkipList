@@ -184,25 +184,29 @@ namespace VSL {
 	};
 
 	/**
-	 * @brief
-	 * @param x
-	 * @return count of 1
-	 */
-	inline uint8_t popcount64(uint64_t x) {
+	* @brief
+	* @param x
+	*/
+	inline uint8_t ctz64(uint64_t x) {
 #if defined(__clang__) || defined(__GNUC__)
-		return static_cast<uint8_t>(__builtin_popcountll(x));
+		return x ? static_cast<uint8_t>(__builtin_ctzll(x)) : 64;
 #elif defined(_MSC_VER)
 #include <intrin.h>
-		return static_cast<uint8_t>(__popcnt64(x));
+		unsigned long index;
+		if (_BitScanForward64(&index, x))
+			return static_cast<uint8_t>(index);
+		else
+			return 64;
 #else
-		// SWAR
-		x = x - ((x >> 1) & 0x5555555555555555ULL);
-		x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
-		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-		x = x + (x >> 8);
-		x = x + (x >> 16);
-		x = x + (x >> 32);
-		return static_cast<uint8_t>(x & 0x7F);
+		if (x == 0) return 64;
+		uint8_t n = 0;
+		if ((x & 0xFFFFFFFF) == 0) { n += 32; x >>= 32; }
+		if ((x & 0xFFFF) == 0) { n += 16; x >>= 16; }
+		if ((x & 0xFF) == 0) { n += 8; x >>= 8; }
+		if ((x & 0xF) == 0) { n += 4; x >>= 4; }
+		if ((x & 0x3) == 0) { n += 2; x >>= 2; }
+		if ((x & 0x1) == 0) { n += 1; }
+		return n;
 #endif
 	}
 
@@ -231,17 +235,40 @@ namespace VSL {
 		T invalid;//you need an invalid default value
 
 		//check if need add level
-		void increaseLevel(VSL::SkipListNode<T>* node) {
+		void increaseLevel() {
 			// 1. level up sentry
 			this->sentryHead.increaseLevel();
 			this->sentryTail.increaseLevel();
-			node->increaseLevel();
 			++this->level;
 
-			this->sentryHead.setRightNode(this->level, node);
-			this->sentryTail.setLeftNode(this->level, node);
-			node->setLeftNode(this->level, &this->sentryHead);
-			node->setRightNode(this->level, &this->sentryTail);
+			// 2. get nodes witch level == this->level - 1
+			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(this->level - 1);
+			VSL::SkipListNode<T>* left = &this->sentryHead;
+
+			while (node->level < (this->level - 1)) {
+				node = node->getRightNode(this->level - 1);
+			}
+
+			//at least one node
+			bool promoted = false;
+
+			while (node != &this->sentryTail) {
+				// 50% percent
+				if ((this->rng.next() & 1) || !promoted) {
+					node->increaseLevel();
+					// connect node
+					node->setLeftNode(this->level, left);
+					left->setRightNode(this->level, node);
+					left = node;
+
+					promoted = true;
+				}
+				node = node->getRightNode(this->level - 1);
+			}
+
+			//connect
+			left->setRightNode(this->level, &this->sentryTail);
+			this->sentryTail.setLeftNode(this->level, left);
 		}
 
 		//check if need sub level
@@ -382,7 +409,7 @@ namespace VSL {
 			if (value == this->invalid) return;
 
 			//make node
-			const auto count = VSL::popcount64(this->rng.next());
+			const auto count = VSL::ctz64(this->rng.next());
 			const auto level = (count <= this->level) ? count : this->level;
 			VSL::SkipListNode<T>* newNode = new VSL::SkipListNode<T>(index, level);
 
@@ -405,7 +432,11 @@ namespace VSL {
 
 			++this->width;
 			if (this->width <= (1ULL << this->level)) return;
-			increaseLevel(newNode);
+			increaseLevel();
+		}
+
+		int64_t getLevel() {
+			return this->level;
 		}
 
 		void printStructure() const {

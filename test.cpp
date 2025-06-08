@@ -97,7 +97,7 @@ void test4() {
 	std::cout << "test5 passed!" << std::endl;
 }
 
-constexpr auto testCount = 4e5;
+constexpr auto testCount = 1e7;
 
 void test_performance_stdmap() {
 	const uint64_t N = testCount;
@@ -150,15 +150,17 @@ void test_performance() {
 	std::chrono::duration<double> query_duration = end_query - start_query;
 	std::cout << "[VSL] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
 	std::cout << "[VSL] Query sum: " << sum << std::endl;
+
+	std::cout << "[VSL] level " << skiplist.getLevel() << std::endl;
 }
 // Call in main function
 int main() {
-	//test1();
-	//test2();
-	//test3();
-	//test4();
+	test1();
+	test2();
+	test3();
+	test4();
 
-	//test_performance_stdmap();
+	test_performance_stdmap();
 	test_performance();
 	return 0;
 }
