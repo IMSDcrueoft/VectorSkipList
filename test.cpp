@@ -11,6 +11,7 @@
 #include <chrono>
 #include <map>
 
+constexpr auto testCount = 5e6;
 using namespace VSL;
 
 void test1() {
@@ -79,7 +80,7 @@ void test3() {
 	skiplist.setElement(10, 100);
 	skiplist.getElement(10, value);
 	assert(value == 100);
-	std::cout << "test4 passed!" << std::endl;
+	std::cout << "test3 passed!" << std::endl;
 }
 
 void test4() {
@@ -94,10 +95,8 @@ void test4() {
 	skiplist.setElement(UINT64_MAX, 2.71);
 	skiplist.getElement(UINT64_MAX, value);
 	assert(value == 2.71);
-	std::cout << "test5 passed!" << std::endl;
+	std::cout << "test4 passed!" << std::endl;
 }
-
-constexpr auto testCount = 1e7;
 
 void test_performance_stdmap() {
 	const uint64_t N = testCount;
@@ -122,6 +121,24 @@ void test_performance_stdmap() {
 	std::chrono::duration<double> query_duration = end_query - start_query;
 	std::cout << "[std::map] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
 	std::cout << "[std::map] Query sum: " << sum << std::endl;
+
+	// Random access test (using fast LCG)
+	auto start_random_query = std::chrono::high_resolution_clock::now();
+	int random_sum = 0;
+	uint64_t seed = 11451419;
+	const uint64_t a = 6364136223846793005ULL;
+	const uint64_t c = 1;
+	for (uint64_t i = 0; i < N; ++i) {
+		seed = seed * a + c;
+		uint64_t idx = seed % N;
+		auto it = m.find(idx);
+		int value = (it != m.end()) ? it->second : -1;
+		random_sum += value;
+	}
+	auto end_random_query = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> random_query_duration = end_random_query - start_random_query;
+	std::cout << "[std::map] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
+	std::cout << "[std::map] Random query sum: " << random_sum << std::endl;
 }
 
 void test_performance() {
@@ -152,6 +169,25 @@ void test_performance() {
 	std::cout << "[VSL] Query sum: " << sum << std::endl;
 
 	std::cout << "[VSL] level " << skiplist.getLevel() << std::endl;
+
+	// Random access test (using fast LCG)
+	auto start_random_query = std::chrono::high_resolution_clock::now();
+	int random_sum = 0;
+	uint64_t seed = 11451419;
+	const uint64_t a = 6364136223846793005ULL;
+	const uint64_t c = 1;
+	for (uint64_t i = 0; i < N; ++i) {
+		seed = seed * a + c;
+		uint64_t idx = seed % N;
+		int value = 0;
+		skiplist.getElement(idx, value);
+		random_sum += value;
+	}
+	auto end_random_query = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> random_query_duration = end_random_query - start_random_query;
+	std::cout << "[VSL] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
+	std::cout << "[VSL] Random query sum: " << random_sum << std::endl;
+
 }
 // Call in main function
 int main() {

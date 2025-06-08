@@ -327,6 +327,8 @@ namespace VSL {
 		 * @param value return value
 		 */
 		void getElement(const uint64_t index, T& value) const {
+			value = this->invalid;
+
 			if (this->width > 0) {
 				const VSL::SkipListNode<T>* node = &this->sentryHead;
 				auto curLevel = this->level;
@@ -344,13 +346,9 @@ namespace VSL {
 
 				// now node is the maximum node with baseIndex <= index
 				if (node != &this->sentryHead && node->baseIndex <= index) {
-					value = this->invalid;
 					node->getElement(index - node->baseIndex, value);
-					return;
 				}
 			}
-
-			value = this->invalid;
 		}
 
 		/**
