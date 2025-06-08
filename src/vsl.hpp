@@ -90,13 +90,14 @@ namespace vsl {
 		 * @param value
 		 */
 		void setElement(const uint8_t index, const T& value) {
-			if (index > vsl::capacity_limit) return;
+			if (index >= vsl::capacity_limit) return;
 
 			//grow capacity
 			if (index >= this->element_capacity) {
-				uint8_t newCapacity = std::min<uint8_t>((this->element_capacity != 0) ? (this->element_capacity << 1) : vsl::capacity_init, vsl::capacity_limit);
+				uint8_t newCapacity = (this->element_capacity != 0) ? (this->element_capacity << 1) : vsl::capacity_init;
+				while (index >= newCapacity) newCapacity <<= 1;
+
 				this->elements = vsl::_realloc(this->elements, this->element_capacity, newCapacity);
-				std::fill_n(this->elements + this->element_capacity, this->element_capacity, 0);
 				this->element_capacity = newCapacity;
 			}
 
@@ -121,7 +122,7 @@ namespace vsl {
 		 * @param index
 		 */
 		void deleteElement(const uint8_t index) {
-			if (index > this->element_capacity) return;
+			if (index >= this->element_capacity) return;
 			bits::set_zero(this->bitMap, index);
 		}
 
@@ -129,15 +130,14 @@ namespace vsl {
 			if ((this->level + 1) >= this->node_capacity) {
 				uint8_t newCapacity = this->node_capacity << 1;
 				this->nodes = vsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
-				std::fill_n(this->nodes + (this->node_capacity << 1), this->node_capacity << 1, nullptr);
 				this->node_capacity = newCapacity;
 			}
 			++this->level;
+			std::fill_n(this->nodes + (this->level << 1), 2, nullptr);
 		}
 
 		void decreaseLevel() {
 			--this->level;
-			std::fill_n(this->nodes + (this->level << 1), 2, nullptr);
 		}
 
 		SkipListNode<T>* getLeftNode(const uint8_t level) const {
@@ -156,7 +156,7 @@ namespace vsl {
 			this->nodes[(level << 1)] = node;
 		}
 
-		static bool isIndexValid(const uint8_t index) {
+		static bool isIndexValid(const uint64_t index) {
 			return index < vsl::capacity_limit;
 		}
 	};
@@ -266,6 +266,77 @@ namespace vsl {
 			const auto count = bits::ctz64(this->rng.next());
 			return (count <= this->level) ? count : this->level;
 		}
+
+		/**
+		 * @brief 
+		 * @param index 
+		 * @return 
+		 */
+		SkipListNode<T>* findLeftNode(const uint64_t index) const {
+			vsl::SkipListNode<T>* node = const_cast<vsl::SkipListNode<T>*>(&this->sentryHead);
+			auto curLevel = this->level;
+
+			while (curLevel >= 0) {
+				auto next = node->getRightNode(curLevel);
+				// check next node, if it is nullptr, then go down a level
+				if (next != &this->sentryTail && next->baseIndex <= index) {
+					node = next;
+				}
+				else {
+					--curLevel;
+				}
+			}
+
+			return node;
+		}
+
+		/**
+		 * @brief 
+		 * @param leftNode 
+		 */
+		void insertNode(const SkipListNode<T>* leftNode, const uint64_t index, const T& value) {
+			//make node
+			const auto level = this->getRandomLevel();
+			vsl::SkipListNode<T>* newNode = new vsl::SkipListNode<T>(index, level);
+
+			//connect
+			vsl::SkipListNode<T>* left = const_cast<vsl::SkipListNode<T>*>(leftNode);
+			vsl::SkipListNode<T>* right = leftNode->getRightNode(0);
+
+			//sentry level is ennough right now
+			for (auto i = 0; i <= level; ++i) {
+				while (left->level < i) left = left->getLeftNode(i - 1);
+				newNode->setLeftNode(i, left);
+				left->setRightNode(i, newNode);
+
+				while (right->level < i) right = right->getRightNode(i - 1);
+				newNode->setRightNode(i, right);
+				right->setLeftNode(i, newNode);
+			}
+
+			newNode->setElement(0, value);
+
+			++this->width;
+			if (this->width <= (1ULL << this->level)) return;
+			increaseLevel();
+		}
+
+		void removeNode(SkipListNode<T>* node) {
+			vsl::SkipListNode<T>* left = nullptr, * right = nullptr;
+
+			for (auto i = 0; i <= node->level; ++i) {
+				left = node->getLeftNode(i);
+				right = node->getRightNode(i);
+
+				left->setRightNode(i, right);
+				right->setLeftNode(i, left);
+			}
+
+			delete node;
+			--this->width;
+			if (this->level == 0 || this->width > (1ULL << this->level)) return;
+			this->decreaseLevel();
+		}
 	public:
 		/**
 		 * @brief
@@ -308,23 +379,11 @@ namespace vsl {
 		 * @param index
 		 * @param value return value
 		 */
-		void getElement(const uint64_t index, T& value) const {
+		void get(const uint64_t index, T& value) const {
 			value = this->invalid;
 
 			if (this->width > 0) {
-				const vsl::SkipListNode<T>* node = &this->sentryHead;
-				auto curLevel = this->level;
-
-				while (curLevel >= 0) {
-					auto next = node->getRightNode(curLevel);
-					// check next node, if it is nullptr, then go down a level
-					if (next != &this->sentryTail && next->baseIndex <= index) {
-						node = next;
-					}
-					else {
-						--curLevel;
-					}
-				}
+				const vsl::SkipListNode<T>* node = this->findLeftNode(index);
 
 				// now node is the maximum node with baseIndex <= index
 				if (node != &this->sentryHead && node->baseIndex <= index) {
@@ -334,83 +393,43 @@ namespace vsl {
 		}
 
 		/**
-		 * @brief if value == invalid, it means delete value
+		 * @brief 
+		 * @param index 
+		 */
+		void erase(const uint64_t index) {
+			if (this->width == 0) return;
+
+			vsl::SkipListNode<T>* node = this->findLeftNode(index);
+
+			// now node is the maximum node with baseIndex <= index
+			if (node != &this->sentryHead && node->baseIndex <= index && vsl::SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				node->deleteElement(index - node->baseIndex);
+
+				//remove node
+				if (node->isEmpty()) this->removeNode(node);
+			}
+		}
+
+		/**
+		 * @brief 
 		 * @param index
 		 * @param value
 		 */
-		void setElement(const uint64_t index, const T& value) {
+		void set(const uint64_t index, const T& value) {
 			vsl::SkipListNode<T>* node = &this->sentryHead;
 
 			if (this->width > 0) {
-				auto curLevel = this->level;
-
-				while (curLevel >= 0) {
-					auto next = node->getRightNode(curLevel);
-					// check next node, if it is nullptr, then go down a level
-					if (next != &this->sentryTail && next->baseIndex <= index) {
-						node = next;
-					}
-					else {
-						--curLevel;
-					}
-				}
+				node = this->findLeftNode(index);
 
 				// now node is the maximum node with baseIndex <= index
 				if (node != &this->sentryHead && node->baseIndex <= index && vsl::SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
-					if (value != this->invalid) {
-						node->setElement(index - node->baseIndex, value);
-					}
-					else {
-						node->deleteElement(index - node->baseIndex);
-
-						//remove node
-						if (node->isEmpty()) {
-							vsl::SkipListNode<T>* left = nullptr, * right = nullptr;
-
-							for (auto i = 0; i <= node->level; ++i) {
-								left = node->getLeftNode(i);
-								right = node->getRightNode(i);
-
-								left->setRightNode(i, right);
-								right->setLeftNode(i, left);
-							}
-
-							delete node;
-							--this->width;
-							if (this->width == 0 || this->width > (1ULL << this->level)) return;
-							this->decreaseLevel();
-						}
-					}
+					node->setElement(index - node->baseIndex, value);
 					return;
 				}
 			}
-			//no need to insert
-			if (value == this->invalid) return;
 
-			//make node
-			const auto level = this->getRandomLevel();
-			vsl::SkipListNode<T>* newNode = new vsl::SkipListNode<T>(index, level);
-
-			//connect
-			vsl::SkipListNode<T>* left = node;
-			vsl::SkipListNode<T>* right = node->getRightNode(0);
-
-			//sentry level is ennough right now
-			for (auto i = 0; i <= level; ++i) {
-				while (left->level < i) left = left->getLeftNode(i - 1);
-				newNode->setLeftNode(i, left);
-				left->setRightNode(i, newNode);
-
-				while (right->level < i) right = right->getRightNode(i - 1);
-				newNode->setRightNode(i, right);
-				right->setLeftNode(i, newNode);
-			}
-
-			newNode->setElement(0, value);
-
-			++this->width;
-			if (this->width <= (1ULL << this->level)) return;
-			increaseLevel();
+			//add node
+			insertNode(node, index, value);
 		}
 
 		int64_t getLevel() {

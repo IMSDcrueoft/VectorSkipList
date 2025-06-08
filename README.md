@@ -42,6 +42,7 @@ See [LICENSE](LICENSE) file for full license text.
 - Dynamically adjusts block capacities (4 to 64 elements)
 - Automatically manages skip list levels based on element count
 - Provides both logical and physical deletion
+- Compared to the red-black tree of std::map, VSL's memory footprint is lower
 
 ## Usage
 
