@@ -23,7 +23,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\VectorSkipList.hpp">
+    <ClInclude Include="src\vsl.hpp">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\bits.hpp">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

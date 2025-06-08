@@ -10,7 +10,9 @@
 #include <algorithm>
 #include <iostream>
 
-namespace VSL {
+#include "./bits.hpp"
+
+namespace vsl {
 	using sizeOfBitMap = uint64_t;
 	static constexpr uint8_t capacity_init = 4;
 	static constexpr uint8_t capacity_limit = sizeof(sizeOfBitMap) * 8;
@@ -56,15 +58,15 @@ namespace VSL {
 			this->level = level;
 
 			//allocate nodePtrs
-			this->nodes = VSL::_realloc(this->nodes, 0, this->node_capacity << 1);
+			this->nodes = vsl::_realloc(this->nodes, 0, this->node_capacity << 1);
 			std::fill_n(this->nodes, this->node_capacity << 1, nullptr);
 		}
 
 		~SkipListNode() {
 			//no ownership
-			VSL::_realloc(this->nodes, this->node_capacity << 1, 0);
+			vsl::_realloc(this->nodes, this->node_capacity << 1, 0);
 			//free elements
-			VSL::_realloc(this->elements, this->element_capacity, 0);
+			vsl::_realloc(this->elements, this->element_capacity, 0);
 
 			this->nodes = nullptr;
 			this->elements = nullptr;
@@ -88,19 +90,19 @@ namespace VSL {
 		 * @param value
 		 */
 		void setElement(const uint8_t index, const T& value) {
-			if (index > VSL::capacity_limit) return;
+			if (index > vsl::capacity_limit) return;
 
 			//grow capacity
 			if (index >= this->element_capacity) {
-				uint8_t newCapacity = std::min<uint8_t>((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL::capacity_init, VSL::capacity_limit);
-				this->elements = VSL::_realloc(this->elements, this->element_capacity, newCapacity);
+				uint8_t newCapacity = std::min<uint8_t>((this->element_capacity != 0) ? (this->element_capacity << 1) : vsl::capacity_init, vsl::capacity_limit);
+				this->elements = vsl::_realloc(this->elements, this->element_capacity, newCapacity);
 				std::fill_n(this->elements + this->element_capacity, this->element_capacity, 0);
 				this->element_capacity = newCapacity;
 			}
 
 			//set value and bitmap
 			this->elements[index] = value;
-			this->bitMap |= (1 << index);
+			bits::set_one(this->bitMap, index);
 		}
 
 		/**
@@ -111,7 +113,7 @@ namespace VSL {
 		void getElement(const uint8_t index, T& value) const {
 			if (index >= this->element_capacity) return;
 			//set value
-			if (this->bitMap & (1 << index)) value = this->elements[index];
+			if (bits::get(this->bitMap, index)) value = this->elements[index];
 		}
 
 		/**
@@ -120,13 +122,13 @@ namespace VSL {
 		 */
 		void deleteElement(const uint8_t index) {
 			if (index > this->element_capacity) return;
-			this->bitMap &= ~(1 << index);
+			bits::set_zero(this->bitMap, index);
 		}
 
 		void increaseLevel() {
 			if ((this->level + 1) >= this->node_capacity) {
 				uint8_t newCapacity = this->node_capacity << 1;
-				this->nodes = VSL::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
+				this->nodes = vsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
 				std::fill_n(this->nodes + (this->node_capacity << 1), this->node_capacity << 1, nullptr);
 				this->node_capacity = newCapacity;
 			}
@@ -155,7 +157,7 @@ namespace VSL {
 		}
 
 		static bool isIndexValid(const uint8_t index) {
-			return index < VSL::capacity_limit;
+			return index < vsl::capacity_limit;
 		}
 	};
 
@@ -182,33 +184,6 @@ namespace VSL {
 	};
 
 	/**
-	* @brief
-	* @param x
-	*/
-	inline uint8_t ctz64(uint64_t x) {
-#if defined(__clang__) || defined(__GNUC__)
-		return x ? static_cast<uint8_t>(__builtin_ctzll(x)) : 64;
-#elif defined(_MSC_VER)
-#include <intrin.h>
-		unsigned long index;
-		if (_BitScanForward64(&index, x))
-			return static_cast<uint8_t>(index);
-		else
-			return 64;
-#else
-		if (x == 0) return 64;
-		uint8_t n = 0;
-		if ((x & 0xFFFFFFFF) == 0) { n += 32; x >>= 32; }
-		if ((x & 0xFFFF) == 0) { n += 16; x >>= 16; }
-		if ((x & 0xFF) == 0) { n += 8; x >>= 8; }
-		if ((x & 0xF) == 0) { n += 4; x >>= 4; }
-		if ((x & 0x3) == 0) { n += 2; x >>= 2; }
-		if ((x & 0x1) == 0) { n += 1; }
-		return n;
-#endif
-	}
-
-	/**
 	 * @tparam T	It shouldn't be a particularly short type, otherwise the node is larger than the data
 	 *
 	 *  When the number of elements in the bottom layer > 2 ^ (current level count), add a new level.
@@ -222,10 +197,10 @@ namespace VSL {
 	template <typename T>
 	class VectorSkipList {
 	private:
-		VSL::Xoroshiro64StarStar rng;
+		vsl::Xoroshiro64StarStar rng;
 
-		VSL::SkipListNode<T> sentryHead;
-		VSL::SkipListNode<T> sentryTail;
+		vsl::SkipListNode<T> sentryHead;
+		vsl::SkipListNode<T> sentryTail;
 
 		uint64_t width = 0;//the node count
 		int64_t level = 0;//the height
@@ -240,8 +215,8 @@ namespace VSL {
 			++this->level;
 
 			// 2. get nodes witch level == this->level - 1
-			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(this->level - 1);
-			VSL::SkipListNode<T>* left = &this->sentryHead;
+			vsl::SkipListNode<T>* node = this->sentryHead.getRightNode(this->level - 1);
+			vsl::SkipListNode<T>* left = &this->sentryHead;
 
 			while (node->level < (this->level - 1)) {
 				node = node->getRightNode(this->level - 1);
@@ -272,10 +247,10 @@ namespace VSL {
 		//check if need sub level
 		void decreaseLevel() {
 			//level down all node that level == this.level
-			VSL::SkipListNode<T>* node = &this->sentryHead;
+			vsl::SkipListNode<T>* node = &this->sentryHead;
 
 			while (node != nullptr) {
-				VSL::SkipListNode<T>* right = node->getRightNode(this->level);
+				vsl::SkipListNode<T>* right = node->getRightNode(this->level);
 				node->decreaseLevel();
 				node = right;
 			}
@@ -310,9 +285,9 @@ namespace VSL {
 
 		~VectorSkipList() {
 			// release one by one
-			VSL::SkipListNode<T>* node = this->sentryHead.getRightNode(0);
+			vsl::SkipListNode<T>* node = this->sentryHead.getRightNode(0);
 			while (node != nullptr && node != &this->sentryTail) {
-				VSL::SkipListNode<T>* next = node->getRightNode(0);
+				vsl::SkipListNode<T>* next = node->getRightNode(0);
 				delete node;
 				node = next;
 			}
@@ -328,7 +303,7 @@ namespace VSL {
 			value = this->invalid;
 
 			if (this->width > 0) {
-				const VSL::SkipListNode<T>* node = &this->sentryHead;
+				const vsl::SkipListNode<T>* node = &this->sentryHead;
 				auto curLevel = this->level;
 
 				while (curLevel >= 0) {
@@ -355,7 +330,7 @@ namespace VSL {
 		 * @param value
 		 */
 		void setElement(const uint64_t index, const T& value) {
-			VSL::SkipListNode<T>* node = &this->sentryHead;
+			vsl::SkipListNode<T>* node = &this->sentryHead;
 
 			if (this->width > 0) {
 				auto curLevel = this->level;
@@ -372,7 +347,7 @@ namespace VSL {
 				}
 
 				// now node is the maximum node with baseIndex <= index
-				if (node != &this->sentryHead && node->baseIndex <= index && VSL::SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				if (node != &this->sentryHead && node->baseIndex <= index && vsl::SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
 					if (value != this->invalid) {
 						node->setElement(index - node->baseIndex, value);
 					}
@@ -381,8 +356,8 @@ namespace VSL {
 
 						//remove node
 						if (node->isEmpty()) {
-							VSL::SkipListNode<T>* left = nullptr;
-							VSL::SkipListNode<T>* right = nullptr;
+							vsl::SkipListNode<T>* left = nullptr;
+							vsl::SkipListNode<T>* right = nullptr;
 
 							for (auto i = 0; i <= node->level; ++i) {
 								left = node->getLeftNode(i);
@@ -405,13 +380,13 @@ namespace VSL {
 			if (value == this->invalid) return;
 
 			//make node
-			const auto count = VSL::ctz64(this->rng.next());
+			const auto count = bits::ctz64(this->rng.next());
 			const auto level = (count <= this->level) ? count : this->level;
-			VSL::SkipListNode<T>* newNode = new VSL::SkipListNode<T>(index, level);
+			vsl::SkipListNode<T>* newNode = new vsl::SkipListNode<T>(index, level);
 
 			//connect
-			VSL::SkipListNode<T>* left = node;
-			VSL::SkipListNode<T>* right = node->getRightNode(0);
+			vsl::SkipListNode<T>* left = node;
+			vsl::SkipListNode<T>* right = node->getRightNode(0);
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
@@ -439,9 +414,9 @@ namespace VSL {
 			std::cout << "SkipList Structure (level: " << this->level << ", width: " << this->width << ")\n";
 			for (int l = 0; l <= this->level; ++l) {
 				std::cout << "Level " << l << ": ";
-				const VSL::SkipListNode<T>* node = &this->sentryHead;
+				const vsl::SkipListNode<T>* node = &this->sentryHead;
 				while (node) {
-					const VSL::SkipListNode<T>* right = node->getRightNode(l);
+					const vsl::SkipListNode<T>* right = node->getRightNode(l);
 					if (node == &this->sentryHead)
 						std::cout << "[HEAD]->";
 					else if (node == &this->sentryTail)

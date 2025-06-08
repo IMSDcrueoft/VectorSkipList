@@ -3,7 +3,7 @@
  * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
-#include "./src/VectorSkipList.hpp"
+#include "./src/vsl.hpp"
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -12,7 +12,7 @@
 #include <map>
 
 constexpr auto testCount = 1e7;
-using namespace VSL;
+using namespace vsl;
 
 void test1() {
 	VectorSkipList<double> skiplist(std::nan(""));
@@ -165,10 +165,10 @@ void test_performance() {
 	}
 	auto end_query = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> query_duration = end_query - start_query;
-	std::cout << "[VSL] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
-	std::cout << "[VSL] Query sum: " << sum << std::endl;
+	std::cout << "[vsl] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
+	std::cout << "[vsl] Query sum: " << sum << std::endl;
 
-	std::cout << "[VSL] level " << skiplist.getLevel() << std::endl;
+	std::cout << "[vsl] level " << skiplist.getLevel() << std::endl;
 
 	// Random access test (using fast LCG)
 	auto start_random_query = std::chrono::high_resolution_clock::now();
@@ -185,8 +185,8 @@ void test_performance() {
 	}
 	auto end_random_query = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> random_query_duration = end_random_query - start_random_query;
-	std::cout << "[VSL] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
-	std::cout << "[VSL] Random query sum: " << random_sum << std::endl;
+	std::cout << "[vsl] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
+	std::cout << "[vsl] Random query sum: " << random_sum << std::endl;
 
 }
 // Call in main function
