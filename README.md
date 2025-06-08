@@ -53,13 +53,13 @@ See [LICENSE](LICENSE) file for full license text.
 VectorSkipList<int> skipList(-1);
 
 // Set elements
-skipList.setElement(100, 42);  // Set value 42 at index 100
-skipList.setElement(500, 73);  // Set value 73 at index 500
+skipList.set(100, 42);  // Set value 42 at index 100
+skipList.set(500, 73);  // Set value 73 at index 500
 
 // Get elements
 int value;
-skipList.getElement(100, value);  // value will be 42
-skipList.getElement(200, value);  // value will be -1 (invalid)
+skipList.get(100, value);  // value will be 42
+skipList.get(200, value);  // value will be -1 (invalid)
 
 // Delete elements
-skipList.setElement(100, -1);  // Logical deletion
+skipList.erase(100);  // Logical deletion
