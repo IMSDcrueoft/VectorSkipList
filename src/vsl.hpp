@@ -122,6 +122,26 @@ namespace vsl {
 			}
 
 			/**
+			 * @brief
+			 * @param index
+			 * @return
+			 */
+			bool hasElement(const uint8_t index) {
+				return (index < this->element_capacity) && bits::get(this->bitMap, index);
+			}
+
+			/**
+			 * @param index
+			 * @param value the reference of value
+			 * only when it is valid, the value will be set
+			 */
+			void getElement(const uint8_t index, T& value) const {
+				if (index >= this->element_capacity) return;
+				//set value
+				if (bits::get(this->bitMap, index)) value = this->elements[index];
+			}
+
+			/**
 			 * @param index
 			 * @param value
 			 */
@@ -140,17 +160,6 @@ namespace vsl {
 				//set value and bitmap
 				this->elements[index] = value;
 				bits::set_one(this->bitMap, index);
-			}
-
-			/**
-			 * @param index
-			 * @param value the reference of value
-			 * only when it is valid, the value will be set
-			 */
-			void getElement(const uint8_t index, T& value) const {
-				if (index >= this->element_capacity) return;
-				//set value
-				if (bits::get(this->bitMap, index)) value = this->elements[index];
 			}
 
 			/**
@@ -295,7 +304,7 @@ namespace vsl {
 		 * @brief
 		 * @param leftNode
 		 */
-		void insertNode(const SkipListNode<T>* leftNode, const uint64_t index, const T& value) {
+		SkipListNode<T>* insertNode(const SkipListNode<T>* leftNode, const uint64_t index, const T& value) {
 			//make node
 			const auto level = this->getRandomLevel();
 			SkipListNode<T>* newNode = new SkipListNode<T>(index, level);
@@ -318,8 +327,11 @@ namespace vsl {
 			newNode->setElement(0, value);
 
 			++this->width;
-			if (this->width <= (1ULL << this->level)) return;
-			increaseLevel();
+			if (this->width > (1ULL << this->level)) {
+				increaseLevel();
+			}
+
+			return newNode;
 		}
 
 		void removeNode(SkipListNode<T>* node) {
@@ -335,7 +347,9 @@ namespace vsl {
 
 			delete node;
 			--this->width;
-			if (this->level == 0 || this->width > (1ULL << this->level)) return;
+
+			constexpr auto minLevel = 4;
+			if (this->level < minLevel || this->width >((1ULL << this->level) - (1ULL << minLevel))) return;
 			this->decreaseLevel();
 		}
 	public:
@@ -375,87 +389,106 @@ namespace vsl {
 			// no need to free sentry node
 		}
 
-		/**
-		 * @brief
-		 * @param index
-		 * @param value return value
-		 */
-		void get(const uint64_t index, T& value) const {
-			value = this->invalid;
-
-			if (this->width > 0) {
-				const SkipListNode<T>* node = this->findLeftNode(index);
-
-				// now node is the maximum node with baseIndex <= index
-				if (node != &this->sentryHead && node->baseIndex <= index) {
-					node->getElement(index - node->baseIndex, value);
-				}
-			}
-		}
-
-		/**
-		 * @brief
-		 * @param index
-		 */
-		void erase(const uint64_t index) {
-			if (this->width == 0) return;
-
-			SkipListNode<T>* node = this->findLeftNode(index);
-
-			// now node is the maximum node with baseIndex <= index
-			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
-				node->deleteElement(index - node->baseIndex);
-
-				//remove node
-				if (node->isEmpty()) this->removeNode(node);
-			}
-		}
-
-		/**
-		 * @brief
-		 * @param index
-		 * @param value
-		 */
-		void set(const uint64_t index, const T& value) {
-			SkipListNode<T>* node = &this->sentryHead;
-
-			if (this->width > 0) {
-				node = this->findLeftNode(index);
-
-				// now node is the maximum node with baseIndex <= index
-				if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
-					node->setElement(index - node->baseIndex, value);
-					return;
-				}
-			}
-
-			//add node
-			insertNode(node, index, value);
-		}
-
 		int64_t getLevel() {
 			return this->level;
 		}
 
-		void printStructure() const {
-			std::cout << "SkipList Structure (level: " << this->level << ", width: " << this->width << ")\n";
-			for (int l = 0; l <= this->level; ++l) {
-				std::cout << "Level " << l << ": ";
-				const SkipListNode<T>* node = &this->sentryHead;
-				while (node) {
-					const SkipListNode<T>* right = node->getRightNode(l);
-					if (node == &this->sentryHead)
-						std::cout << "[HEAD]->";
-					else if (node == &this->sentryTail)
-						std::cout << "[TAIL]";
-					else
-						std::cout << "[" << node->baseIndex << "]->";
+		/**
+		 * @brief
+		 * @param index
+		 * @return
+		 */
+		bool has(const uint64_t index) const {
+			if (this->width == 0) return false;
 
-					if (right == nullptr) break;
-					node = right;
-				}
-				std::cout << std::endl;
+			SkipListNode<T>* node = this->findLeftNode(index);
+			// now node is the maximum node with baseIndex <= index
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				return node->hasElement(index - node->baseIndex);
 			}
+			return false;
 		}
+
+		/**
+		 * @brief
+		 * @param index
+		 */
+		bool erase(const uint64_t index) {
+			if (this->width == 0) return false;
+
+			SkipListNode<T>* node = this->findLeftNode(index);
+			// now node is the maximum node with baseIndex <= index
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
+				if (node->hasElement(offset)) {
+					node->deleteElement(offset);
+
+					//remove node
+					if (node->isEmpty()) this->removeNode(node);
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * @brief
+		 * @param index
+		 * @return
+		 */
+		T& operator[](const uint64_t index) {
+			SkipListNode<T>* node = this->findLeftNode(index);
+
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
+				if (!node->hasElement(offset)) {
+					node->setElement(offset, this->invalid);
+				}
+
+				return node->elements[offset];
+			}
+
+			SkipListNode<T>* newNode = this->insertNode(node, index, this->invalid);
+			return newNode->elements[0];
+		}
+
+		/**
+		 * @brief
+		 * @param index
+		 * @return
+		 */
+		const T& operator[](const uint64_t index) const {
+			SkipListNode<T>* node = this->findLeftNode(index);
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
+
+				if (node->hasElement(offset)) {
+					return node->elements[offset];
+				}
+			}
+
+			return this->invalid;
+		}
+
+		//void printStructure() const {
+		//	std::cout << "SkipList Structure (level: " << this->level << ", width: " << this->width << ")\n";
+		//	for (int l = 0; l <= this->level; ++l) {
+		//		std::cout << "Level " << l << ": ";
+		//		const SkipListNode<T>* node = &this->sentryHead;
+		//		while (node) {
+		//			const SkipListNode<T>* right = node->getRightNode(l);
+		//			if (node == &this->sentryHead)
+		//				std::cout << "[HEAD]->";
+		//			else if (node == &this->sentryTail)
+		//				std::cout << "[TAIL]";
+		//			else
+		//				std::cout << "[" << node->baseIndex << "]->";
+
+		//			if (right == nullptr) break;
+		//			node = right;
+		//		}
+		//		std::cout << std::endl;
+		//	}
+		//}
 	};
 }
