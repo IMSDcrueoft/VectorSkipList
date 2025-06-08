@@ -11,8 +11,9 @@
 #include <iostream>
 
 namespace VSL {
-	constexpr uint64_t capacity_init = 4;
-	constexpr uint64_t capacity_limit = 32;
+	using sizeOfBitMap = uint64_t;
+	static constexpr uint8_t capacity_init = 4;
+	static constexpr uint8_t capacity_limit = sizeof(sizeOfBitMap) * 8;
 
 	template<typename T>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
@@ -40,22 +41,19 @@ namespace VSL {
 	struct SkipListNode {
 		SkipListNode<T>** nodes = nullptr;	//right = level*2 ,left = level * 2 + 1
 		T* elements = nullptr;
+		uint64_t baseIndex;					//The array is offset by the index, which is almost unmodified
 
-		uint64_t baseIndex;				//The array is offset by the index, which is almost unmodified
-		uint32_t bitMap;				//use bitMap to manage
-		uint16_t node_capacity;			//real capacity = *2
-		uint8_t level;					//height
-		uint8_t element_capacity;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
+		sizeOfBitMap bitMap = 0;			//use bitMap to manage
+
+		uint8_t node_capacity;				//real capacity = *2
+		uint8_t level;						//height
+		uint8_t element_capacity = 0;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
 
 	public:
 		SkipListNode(const uint64_t baseIndex = 0, const uint8_t level = 0) {
-			this->nodes = nullptr;
-			this->elements = nullptr;
 			this->baseIndex = baseIndex;
-			this->bitMap = 0;
 			this->node_capacity = (level + 1);
 			this->level = level;
-			this->element_capacity = 0;//Sentinel nodes do not store data
 
 			//allocate nodePtrs
 			this->nodes = VSL::_realloc(this->nodes, 0, this->node_capacity << 1);
@@ -94,7 +92,7 @@ namespace VSL {
 
 			//grow capacity
 			if (index >= this->element_capacity) {
-				uint8_t newCapacity = std::min((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL::capacity_init, VSL::capacity_limit);
+				uint8_t newCapacity = std::min<uint8_t>((this->element_capacity != 0) ? (this->element_capacity << 1) : VSL::capacity_init, VSL::capacity_limit);
 				this->elements = VSL::_realloc(this->elements, this->element_capacity, newCapacity);
 				std::fill_n(this->elements + this->element_capacity, this->element_capacity, 0);
 				this->element_capacity = newCapacity;

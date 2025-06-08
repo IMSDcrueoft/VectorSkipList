@@ -11,7 +11,7 @@
 #include <chrono>
 #include <map>
 
-constexpr auto testCount = 5e6;
+constexpr auto testCount = 1e7;
 using namespace VSL;
 
 void test1() {
