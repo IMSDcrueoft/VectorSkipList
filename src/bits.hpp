@@ -11,6 +11,24 @@
 #endif
 
 namespace bits {
+	template <typename T>
+	T ceil(T x) {
+		static_assert(std::is_unsigned_v<T>, "Template argument must be an unsigned type.");
+
+		if (x == 0) return 1;
+
+		--x;
+
+		x |= x >> 1;
+		x |= x >> 2;
+		x |= x >> 4;
+
+		if constexpr (sizeof(T) > 1) x |= x >> 8;
+		if constexpr (sizeof(T) > 2) x |= x >> 16;
+		if constexpr (sizeof(T) > 4) x |= x >> 32;
+
+		return x + 1;
+	}
 
 	template<typename T>
 	static inline void set_one(T& value, uint8_t bitIdx) noexcept {

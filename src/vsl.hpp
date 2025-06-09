@@ -90,7 +90,7 @@ namespace vsl {
 		public:
 			SkipListNode(const uint64_t baseIndex = 0, const uint8_t level = 0) {
 				this->baseIndex = baseIndex;
-				this->node_capacity = (level + 1);
+				this->node_capacity = bits::ceil(level);
 				this->level = level;
 
 				//allocate nodePtrs
