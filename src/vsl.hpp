@@ -103,14 +103,6 @@ namespace vsl {
 				vsl::_realloc(this->nodes, this->node_capacity << 1, 0);
 				//free elements
 				vsl::_realloc(this->elements, this->element_capacity, 0);
-
-				this->nodes = nullptr;
-				this->elements = nullptr;
-				this->baseIndex = 0;
-				this->bitMap = 0;
-				this->node_capacity = 0;
-				this->level = 0;
-				this->element_capacity = 0;
 			}
 
 			/**
