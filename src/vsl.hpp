@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <iostream>
+#include <type_traits> // Ensure this header is included for std::enable_if and std::is_integral
 
 #include "./bits.hpp"
 
@@ -17,7 +18,7 @@ namespace vsl {
 	static constexpr uint8_t capacity_init = 4;
 	static constexpr uint8_t capacity_limit = sizeof(UintTypeBitMap) * 8;
 
-	template<typename T>
+	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
 		if (newSize == 0) {
 			if (pointer != nullptr) std::free(pointer);
@@ -66,7 +67,7 @@ namespace vsl {
 	 *  and when deleted, they are deleted in place instead of splitting
 	 *  avoiding the complexity caused by merging and splitting
 	 */
-	template <typename T>
+	template <typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	class VectorSkipList {
 	protected:
 		/**

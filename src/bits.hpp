@@ -5,16 +5,15 @@
 */
 #pragma once  
 #include <cstdint>  
+#include <type_traits> // Ensure this header is included for std::enable_if and std::is_integral
 
 #if defined(_MSC_VER)
 #include <intrin.h> // Ensure this header is included for MSVC intrinsic functions  
 #endif
 
 namespace bits {
-	template <typename T>
+	template <typename T, typename = std::enable_if<std::is_integral_v<T>>>
 	T ceil(T x) {
-		static_assert(std::is_unsigned_v<T>, "Template argument must be an unsigned type.");
-
 		if (x == 0) return 1;
 
 		--x;
