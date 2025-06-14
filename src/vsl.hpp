@@ -15,8 +15,8 @@
 
 namespace vsl {
 	using UintTypeBitMap = uint64_t;
-	static constexpr uint8_t capacity_init = 4;
-	static constexpr uint8_t capacity_limit = sizeof(UintTypeBitMap) * 8;
+	static constexpr uint64_t capacity_init = 4;
+	static constexpr uint64_t capacity_limit = sizeof(UintTypeBitMap) * 8;
 
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
@@ -297,7 +297,7 @@ namespace vsl {
 		 * @brief
 		 * @param leftNode
 		 */
-		SkipListNode<T>* insertNode(const SkipListNode<T>* leftNode, const uint64_t index, const T& value) {
+		SkipListNode<T>* insertNode(const SkipListNode<T>* leftNode, const uint64_t index) {
 			//make node
 			const auto level = this->getRandomLevel();
 			SkipListNode<T>* newNode = new SkipListNode<T>(index, level);
@@ -316,8 +316,6 @@ namespace vsl {
 				newNode->setRightNode(i, right);
 				right->setLeftNode(i, newNode);
 			}
-
-			newNode->setElement(0, value);
 
 			++this->width;
 			if (this->width > (1ULL << this->level)) {
@@ -441,8 +439,12 @@ namespace vsl {
 				return node->elements[offset];
 			}
 
-			SkipListNode<T>* newNode = this->insertNode(node, index, this->invalid);
-			return newNode->elements[0];
+			//align to capacity
+			const uint64_t offsetIndex = index & (vsl::capacity_limit - 1);
+
+			SkipListNode<T>* newNode = this->insertNode(node, index - offsetIndex);
+			newNode->setElement(offsetIndex, this->invalid);
+			return newNode->elements[offsetIndex];
 		}
 
 		/**
