@@ -14,9 +14,10 @@
 #include "./bits.hpp"
 
 namespace vsl {
-	using UintTypeBitMap = uint64_t;
+	using UintTypeBitMap = uint32_t;
 	static constexpr uint64_t capacity_init = 4;
 	static constexpr uint64_t capacity_limit = sizeof(UintTypeBitMap) * 8;
+	static constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
 
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
@@ -440,7 +441,7 @@ namespace vsl {
 			}
 
 			//align to capacity
-			const uint64_t offsetIndex = index & (vsl::capacity_limit - 1);
+			const uint64_t offsetIndex = index & index_align;
 
 			SkipListNode<T>* newNode = this->insertNode(node, index - offsetIndex);
 			newNode->setElement(offsetIndex, this->invalid);
