@@ -15,9 +15,9 @@
 
 namespace vsl {
 	using UintTypeBitMap = uint32_t;
-	static constexpr uint64_t capacity_init = 4;
-	static constexpr uint64_t capacity_limit = sizeof(UintTypeBitMap) * 8;
-	static constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
+	constexpr uint64_t capacity_init = 4;
+	constexpr uint64_t capacity_limit = sizeof(UintTypeBitMap) * 8;
+	constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
 
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
@@ -200,6 +200,10 @@ namespace vsl {
 			}
 		};
 
+	private:
+		//thread local caches,shared among instances,coroutines danger
+		static inline thread_local SkipListNode<T>* leftPathNodes[32];
+
 	protected:
 		vsl::Xoroshiro64StarStar rng;
 
@@ -275,7 +279,6 @@ namespace vsl {
 		/**
 		 * @brief
 		 * @param index
-		 * @return
 		 */
 		SkipListNode<T>* findLeftNode(const uint64_t index) const {
 			SkipListNode<T>* node = const_cast<SkipListNode<T>*>(&this->sentryHead);
@@ -288,33 +291,34 @@ namespace vsl {
 					node = next;
 				}
 				else {
+					leftPathNodes[curLevel] = node;
 					--curLevel;
 				}
 			}
 
-			return node;
+			return leftPathNodes[0];
 		}
 
 		/**
-		 * @brief
-		 * @param leftNode
+		 * @brief 
+		 * @param index 
+		 * @return 
 		 */
-		SkipListNode<T>* insertNode(const SkipListNode<T>* leftNode, const uint64_t index) {
+		SkipListNode<T>* insertNode(const uint64_t index) {
 			//make node
 			const auto level = this->getRandomLevel();
 			SkipListNode<T>* newNode = new SkipListNode<T>(index, level);
 
 			//connect
-			SkipListNode<T>* left = const_cast<SkipListNode<T>*>(leftNode);
-			SkipListNode<T>* right = leftNode->getRightNode(0);
+			SkipListNode<T>* left = nullptr, *right = nullptr;
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
-				while (left->level < i) left = left->getLeftNode(i - 1);
+				left = leftPathNodes[i];
+				right = left->getRightNode(i);
+
 				newNode->setLeftNode(i, left);
 				left->setRightNode(i, newNode);
-
-				while (right->level < i) right = right->getRightNode(i - 1);
 				newNode->setRightNode(i, right);
 				right->setLeftNode(i, newNode);
 			}
@@ -327,11 +331,15 @@ namespace vsl {
 			return newNode;
 		}
 
+		/**
+		 * @brief 
+		 * @param node 
+		 */
 		void removeNode(SkipListNode<T>* node) {
 			SkipListNode<T>* left = nullptr, * right = nullptr;
 
 			for (auto i = 0; i <= node->level; ++i) {
-				left = node->getLeftNode(i);
+				left = (leftPathNodes[i] != node) ? leftPathNodes[i] : node->getLeftNode(i);
 				right = node->getRightNode(i);
 
 				left->setRightNode(i, right);
@@ -444,7 +452,7 @@ namespace vsl {
 			//align to capacity
 			const uint64_t offsetIndex = index & index_align;
 
-			SkipListNode<T>* newNode = this->insertNode(node, index - offsetIndex);
+			SkipListNode<T>* newNode = this->insertNode(index - offsetIndex);
 			newNode->setElement(offsetIndex, this->invalid);
 			return newNode->elements[offsetIndex];
 		}
