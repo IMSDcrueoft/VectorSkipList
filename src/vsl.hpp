@@ -267,7 +267,8 @@ namespace vsl {
 		 * @return
 		 */
 		uint8_t getRandomLevel() {
-			const auto count = bits::ctz64(this->rng.next());
+			//limit level [0-31]
+			const auto count = bits::ctz64(this->rng.next()) & 31;
 			return (count <= this->level) ? count : this->level;
 		}
 
@@ -340,7 +341,7 @@ namespace vsl {
 			delete node;
 			--this->width;
 
-			constexpr auto minLevel = 4;
+			constexpr auto minLevel = 6;
 			if (this->level < minLevel || this->width >((1ULL << this->level) - (1ULL << minLevel))) return;
 			this->decreaseLevel();
 		}
