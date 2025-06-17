@@ -1,7 +1,7 @@
 # Vectorized Block Skip List
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/VectorSkipList)
 
-A block-based skip list with dynamically sized blocks, designed to represent sparse array structures efficiently.
+A block-based skip list with dynamically sized blocks, as a kind of KV structure.
 
 ## Features
 
@@ -39,7 +39,7 @@ See [LICENSE](LICENSE) file for full license text.
 ### Technical Specifications
 
 - Uses bitmaps to track valid elements within blocks
-- Dynamically adjusts block capacities (4 to 64 elements)
+- Dynamically adjusts block capacities (4 to 8/16/32/64 elements)
 - Automatically manages skip list levels based on element count
 - Provides both logical and physical deletion
 - Compared to the red-black tree of std::map, VSL's memory footprint is lower
