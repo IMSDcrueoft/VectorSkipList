@@ -9,16 +9,10 @@
 #include <cstdint>
 #include <algorithm>
 #include <iostream>
-#include <type_traits> // Ensure this header is included for std::enable_if and std::is_integral
 
 #include "./bits.hpp"
 
 namespace vsl {
-	using UintTypeBitMap = uint32_t;
-	constexpr uint64_t capacity_init = 4;
-	constexpr uint64_t capacity_limit = sizeof(UintTypeBitMap) * 8;
-	constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
-
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
 		if (newSize == 0) {
@@ -57,9 +51,12 @@ namespace vsl {
 		}
 	};
 
+	using bitMap_t = uint32_t;
+	constexpr uint64_t capacity_init = 4;
+	constexpr uint64_t capacity_limit = sizeof(bitMap_t) * 8;
+	constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
+
 	/**
-	 * @tparam T	It shouldn't be a particularly short type, otherwise the node is larger than the data
-	 *
 	 *  When the number of elements in the bottom layer > 2 ^ (current level count), add a new level.
 	 *  Conversely, if the number of blocks in the bottom layer < 2 ^ (current level count - 1), remove the topmost level.
 	 *  Therefore, even when used as a regular array, it still functions as a skip list with a expected complexity of (log(n / capacityLimit) + 1) to (log(n) + 1).
@@ -68,29 +65,28 @@ namespace vsl {
 	 *  and when deleted, they are deleted in place instead of splitting
 	 *  avoiding the complexity caused by merging and splitting
 	 */
-	template <typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
+	template <typename index_t, typename value_t, typename = std::enable_if<std::is_integral_v<index_t>&& std::is_trivial_v<value_t>&& std::is_standard_layout_v<value_t>>>
 	class VectorSkipList {
 	protected:
 		/**
 		 * @brief	It's just for storing data, so it's struct
-		 * @tparam T	It shouldn't be a particularly short type, otherwise the node is larger than the data
+		 * @tparam value_t	It shouldn't be a particularly short type, otherwise the node is larger than the data
 		 *
 		 * In order to compress the memory occupied by a single node, we do not apply STL containers
 		 */
-		template <typename T>
 		struct SkipListNode {
-			SkipListNode<T>** nodes = nullptr;	//right = level*2 ,left = level * 2 + 1
-			T* elements = nullptr;
-			uint64_t baseIndex;					//The array is offset by the index, which is almost unmodified
+			SkipListNode** nodes = nullptr;		//right = level*2 ,left = level * 2 + 1
+			value_t* elements = nullptr;
+			index_t baseIndex;					//The array is offset by the index, which is almost unmodified
 
-			UintTypeBitMap bitMap = 0;			//use bitMap to manage
+			bitMap_t bitMap = 0;				//use bitMap to manage
 
 			uint8_t node_capacity;				//real capacity = *2
 			uint8_t level;						//height
 			uint8_t element_capacity = 0;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
 
 		public:
-			SkipListNode(const uint64_t baseIndex = 0, const uint8_t level = 0) {
+			SkipListNode(const index_t baseIndex = 0, const uint8_t level = 0) {
 				this->baseIndex = baseIndex;
 				this->node_capacity = bits::ceil<uint8_t>(level + 1);
 				this->level = level;
@@ -129,7 +125,7 @@ namespace vsl {
 			 * @param value the reference of value
 			 * only when it is valid, the value will be set
 			 */
-			void getElement(const uint8_t index, T& value) const {
+			void getElement(const uint8_t index, value_t& value) const {
 				if (index >= this->element_capacity) return;
 				//set value
 				if (bits::get(this->bitMap, index)) value = this->elements[index];
@@ -139,7 +135,7 @@ namespace vsl {
 			 * @param index
 			 * @param value
 			 */
-			void setElement(const uint8_t index, const T& value) {
+			void setElement(const uint8_t index, const value_t& value) {
 				if (index >= vsl::capacity_limit) return;
 
 				//grow capacity
@@ -179,19 +175,19 @@ namespace vsl {
 				--this->level;
 			}
 
-			SkipListNode<T>* getLeftNode(const uint8_t level) const {
+			SkipListNode* getLeftNode(const uint8_t level) const {
 				return this->nodes[(level << 1) | 1];
 			}
 
-			SkipListNode<T>* getRightNode(const uint8_t level) const {
+			SkipListNode* getRightNode(const uint8_t level) const {
 				return this->nodes[(level << 1)];
 			}
 
-			void setLeftNode(const uint8_t level, SkipListNode<T>* node) {
+			void setLeftNode(const uint8_t level, SkipListNode* node) {
 				this->nodes[(level << 1) | 1] = node;
 			}
 
-			void setRightNode(const uint8_t level, SkipListNode<T>* node) {
+			void setRightNode(const uint8_t level, SkipListNode* node) {
 				this->nodes[(level << 1)] = node;
 			}
 
@@ -202,18 +198,18 @@ namespace vsl {
 
 	private:
 		//thread local caches,shared among instances,coroutines danger
-		static inline thread_local SkipListNode<T>* leftPathNodes[32];
+		static inline thread_local SkipListNode* leftPathNodes[32];
 
 	protected:
 		vsl::Xoroshiro64StarStar rng;
 
-		SkipListNode<T> sentryHead;
-		SkipListNode<T> sentryTail;
+		SkipListNode sentryHead;
+		SkipListNode sentryTail;
 
 		uint64_t width = 0;//the node count
 		int64_t level = 0;//the height
 
-		T invalid;//you need an invalid default value
+		value_t invalid;//you need an invalid default value
 
 		//check if need add level
 		void increaseLevel() {
@@ -223,8 +219,8 @@ namespace vsl {
 			++this->level;
 
 			// 2. get nodes witch level == this->level - 1
-			SkipListNode<T>* node = this->sentryHead.getRightNode(this->level - 1);
-			SkipListNode<T>* left = &this->sentryHead;
+			SkipListNode* node = this->sentryHead.getRightNode(this->level - 1);
+			SkipListNode* left = &this->sentryHead;
 
 			while (node->level < (this->level - 1)) {
 				node = node->getRightNode(this->level - 1);
@@ -255,10 +251,10 @@ namespace vsl {
 		//check if need sub level
 		void decreaseLevel() {
 			//level down all node that level == this.level
-			SkipListNode<T>* node = &this->sentryHead;
+			SkipListNode* node = &this->sentryHead;
 
 			while (node != nullptr) {
-				SkipListNode<T>* right = node->getRightNode(this->level);
+				SkipListNode* right = node->getRightNode(this->level);
 				node->decreaseLevel();
 				node = right;
 			}
@@ -280,8 +276,8 @@ namespace vsl {
 		 * @brief
 		 * @param index
 		 */
-		SkipListNode<T>* findLeftNode(const uint64_t index) const {
-			SkipListNode<T>* node = const_cast<SkipListNode<T>*>(&this->sentryHead);
+		SkipListNode* findLeftNode(const index_t index) const {
+			SkipListNode* node = const_cast<SkipListNode*>(&this->sentryHead);
 			auto curLevel = this->level;
 
 			while (curLevel >= 0) {
@@ -300,17 +296,17 @@ namespace vsl {
 		}
 
 		/**
-		 * @brief 
-		 * @param index 
-		 * @return 
+		 * @brief
+		 * @param index
+		 * @return
 		 */
-		SkipListNode<T>* insertNode(const uint64_t index) {
+		SkipListNode* insertNode(const index_t index) {
 			//make node
 			const auto level = this->getRandomLevel();
-			SkipListNode<T>* newNode = new SkipListNode<T>(index, level);
+			SkipListNode* newNode = new SkipListNode(index, level);
 
 			//connect
-			SkipListNode<T>* left = nullptr, *right = nullptr;
+			SkipListNode* left = nullptr, * right = nullptr;
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
@@ -332,11 +328,11 @@ namespace vsl {
 		}
 
 		/**
-		 * @brief 
-		 * @param node 
+		 * @brief
+		 * @param node
 		 */
-		void removeNode(SkipListNode<T>* node) {
-			SkipListNode<T>* left = nullptr, * right = nullptr;
+		void removeNode(SkipListNode* node) {
+			SkipListNode* left = nullptr, * right = nullptr;
 
 			for (auto i = 0; i <= node->level; ++i) {
 				left = (leftPathNodes[i] != node) ? leftPathNodes[i] : node->getLeftNode(i);
@@ -358,7 +354,7 @@ namespace vsl {
 		 * @brief
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		VectorSkipList(const T& invalid) {
+		VectorSkipList(const value_t& invalid) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -370,7 +366,7 @@ namespace vsl {
 		 * @param seed
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		VectorSkipList(const T& invalid, uint64_t seed) {
+		VectorSkipList(const value_t& invalid, uint64_t seed) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -381,9 +377,9 @@ namespace vsl {
 
 		~VectorSkipList() {
 			// release one by one
-			SkipListNode<T>* node = this->sentryHead.getRightNode(0);
+			SkipListNode* node = this->sentryHead.getRightNode(0);
 			while (node != nullptr && node != &this->sentryTail) {
-				SkipListNode<T>* next = node->getRightNode(0);
+				SkipListNode* next = node->getRightNode(0);
 				delete node;
 				node = next;
 			}
@@ -399,12 +395,12 @@ namespace vsl {
 		 * @param index
 		 * @return
 		 */
-		bool has(const uint64_t index) const {
+		bool has(const index_t index) const {
 			if (this->width == 0) return false;
 
-			SkipListNode<T>* node = this->findLeftNode(index);
+			SkipListNode* node = this->findLeftNode(index);
 			// now node is the maximum node with baseIndex <= index
-			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
 				return node->hasElement(index - node->baseIndex);
 			}
 			return false;
@@ -414,12 +410,12 @@ namespace vsl {
 		 * @brief
 		 * @param index
 		 */
-		bool erase(const uint64_t index) {
+		bool erase(const index_t index) {
 			if (this->width == 0) return false;
 
-			SkipListNode<T>* node = this->findLeftNode(index);
+			SkipListNode* node = this->findLeftNode(index);
 			// now node is the maximum node with baseIndex <= index
-			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
 				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
 				if (node->hasElement(offset)) {
 					node->deleteElement(offset);
@@ -437,10 +433,10 @@ namespace vsl {
 		 * @param index
 		 * @return
 		 */
-		T& operator[](const uint64_t index) {
-			SkipListNode<T>* node = this->findLeftNode(index);
+		value_t& operator[](const index_t index) {
+			SkipListNode* node = this->findLeftNode(index);
 
-			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
 				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
 				if (!node->hasElement(offset)) {
 					node->setElement(offset, this->invalid);
@@ -450,9 +446,9 @@ namespace vsl {
 			}
 
 			//align to capacity
-			const uint64_t offsetIndex = index & index_align;
+			const index_t offsetIndex = index & index_align;
 
-			SkipListNode<T>* newNode = this->insertNode(index - offsetIndex);
+			SkipListNode* newNode = this->insertNode(index - offsetIndex);
 			newNode->setElement(offsetIndex, this->invalid);
 			return newNode->elements[offsetIndex];
 		}
@@ -462,9 +458,9 @@ namespace vsl {
 		 * @param index
 		 * @return
 		 */
-		const T& operator[](const uint64_t index) const {
-			SkipListNode<T>* node = this->findLeftNode(index);
-			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode<T>::isIndexValid(index - node->baseIndex)) {
+		const value_t& operator[](const index_t index) const {
+			SkipListNode* node = this->findLeftNode(index);
+			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
 				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
 
 				if (node->hasElement(offset)) {
@@ -474,26 +470,5 @@ namespace vsl {
 
 			return this->invalid;
 		}
-
-		//void printStructure() const {
-		//	std::cout << "SkipList Structure (level: " << this->level << ", width: " << this->width << ")\n";
-		//	for (int l = 0; l <= this->level; ++l) {
-		//		std::cout << "Level " << l << ": ";
-		//		const SkipListNode<T>* node = &this->sentryHead;
-		//		while (node) {
-		//			const SkipListNode<T>* right = node->getRightNode(l);
-		//			if (node == &this->sentryHead)
-		//				std::cout << "[HEAD]->";
-		//			else if (node == &this->sentryTail)
-		//				std::cout << "[TAIL]";
-		//			else
-		//				std::cout << "[" << node->baseIndex << "]->";
-
-		//			if (right == nullptr) break;
-		//			node = right;
-		//		}
-		//		std::cout << std::endl;
-		//	}
-		//}
 	};
 }

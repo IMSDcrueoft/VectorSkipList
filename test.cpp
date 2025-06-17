@@ -15,7 +15,7 @@ constexpr auto testCount = 1e6;
 using namespace vsl;
 
 void test1() {
-	VectorSkipList<double> skiplist(std::nan(""));
+	VectorSkipList<uint64_t, double> skiplist(std::nan(""));
 
 	// test insert
 	for (uint64_t i = 0; i < 10; ++i) {
@@ -51,7 +51,7 @@ void test1() {
 
 void test2() {
 	// Test large range insertion and sparsity
-	VectorSkipList<int> skiplist(-1);
+	VectorSkipList<uint64_t, int> skiplist(-1);
 	for (uint64_t i = 0; i < 1000; i += 100) {
 		skiplist[i] = static_cast<int>(i * 2);
 	}
@@ -60,7 +60,8 @@ void test2() {
 			assert(skiplist.has(i));
 			int value = skiplist[i];
 			assert(value == static_cast<int>(i * 2));
-		} else {
+		}
+		else {
 			assert(!skiplist.has(i));
 			int value = skiplist[i];
 			assert(value == -1);
@@ -71,7 +72,7 @@ void test2() {
 
 void test3() {
 	// Test deletion and reinsertion
-	VectorSkipList<int> skiplist(-999);
+	VectorSkipList<uint64_t, int> skiplist(-999);
 	skiplist[10] = 42;
 	assert(skiplist.has(10));
 	int value = skiplist[10];
@@ -89,7 +90,7 @@ void test3() {
 
 void test4() {
 	// Test boundary conditions
-	VectorSkipList<double> skiplist(std::nan(""));
+	VectorSkipList<uint64_t, double> skiplist(std::nan(""));
 	assert(!skiplist.has(0));
 	double value = skiplist[0];
 	assert(std::isnan(value));
@@ -150,7 +151,7 @@ void test_performance_stdmap() {
 void test_performance() {
 	// Performance test: insert and query a large number of elements
 	const uint64_t N = testCount;
-	VectorSkipList<int> skiplist(-1);
+	VectorSkipList<uint64_t, int> skiplist(-1);
 
 	// Insert test
 	auto start_insert = std::chrono::high_resolution_clock::now();
@@ -232,7 +233,7 @@ void test_performance_random() {
 	const uint64_t deleteCount = static_cast<uint64_t>(N * 0.2);
 
 	// -------- VectorSkipList --------
-	VectorSkipList<int> skiplist(-1);
+	VectorSkipList<uint64_t, int> skiplist(-1);
 
 	auto start_vsl_insert = std::chrono::high_resolution_clock::now();
 	for (uint64_t i = 0; i < N; ++i) skiplist[i] = static_cast<int>(i);
