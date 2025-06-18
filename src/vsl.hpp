@@ -12,7 +12,7 @@
 
 #include "./bits.hpp"
 
-namespace vsl {
+namespace bvsl {
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
 		if (newSize == 0) {
@@ -66,7 +66,7 @@ namespace vsl {
 	 *  avoiding the complexity caused by merging and splitting
 	 */
 	template <typename index_t, typename value_t, typename = std::enable_if<std::is_integral_v<index_t>&& std::is_trivial_v<value_t>&& std::is_standard_layout_v<value_t>>>
-	class VectorSkipList {
+	class BitmappedVectorSkipList {
 	protected:
 		/**
 		 * @brief	It's just for storing data, so it's struct
@@ -92,15 +92,15 @@ namespace vsl {
 				this->level = level;
 
 				//allocate nodePtrs
-				this->nodes = vsl::_realloc(this->nodes, 0, this->node_capacity << 1);
+				this->nodes = bvsl::_realloc(this->nodes, 0, this->node_capacity << 1);
 				std::fill_n(this->nodes, this->node_capacity << 1, nullptr);
 			}
 
 			~SkipListNode() {
 				//no ownership
-				vsl::_realloc(this->nodes, this->node_capacity << 1, 0);
+				bvsl::_realloc(this->nodes, this->node_capacity << 1, 0);
 				//free elements
-				vsl::_realloc(this->elements, this->element_capacity, 0);
+				bvsl::_realloc(this->elements, this->element_capacity, 0);
 			}
 
 			/**
@@ -136,14 +136,14 @@ namespace vsl {
 			 * @param value
 			 */
 			void setElement(const uint8_t index, const value_t& value) {
-				if (index >= vsl::capacity_limit) return;
+				if (index >= bvsl::capacity_limit) return;
 
 				//grow capacity
 				if (index >= this->element_capacity) {
-					uint8_t newCapacity = (this->element_capacity != 0) ? (this->element_capacity << 1) : vsl::capacity_init;
+					uint8_t newCapacity = (this->element_capacity != 0) ? (this->element_capacity << 1) : bvsl::capacity_init;
 					while (index >= newCapacity) newCapacity <<= 1;
 
-					this->elements = vsl::_realloc(this->elements, this->element_capacity, newCapacity);
+					this->elements = bvsl::_realloc(this->elements, this->element_capacity, newCapacity);
 					this->element_capacity = newCapacity;
 				}
 
@@ -164,7 +164,7 @@ namespace vsl {
 			void increaseLevel() {
 				if ((this->level + 1) >= this->node_capacity) {
 					uint8_t newCapacity = this->node_capacity << 1;
-					this->nodes = vsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
+					this->nodes = bvsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
 					this->node_capacity = newCapacity;
 				}
 				++this->level;
@@ -192,7 +192,7 @@ namespace vsl {
 			}
 
 			static bool isIndexValid(const uint64_t index) {
-				return index < vsl::capacity_limit;
+				return index < bvsl::capacity_limit;
 			}
 		};
 
@@ -201,7 +201,7 @@ namespace vsl {
 		static inline thread_local SkipListNode* leftPathNodes[32];
 
 	protected:
-		vsl::Xoroshiro64StarStar rng;
+		bvsl::Xoroshiro64StarStar rng;
 
 		SkipListNode sentryHead;
 		SkipListNode sentryTail;
@@ -354,7 +354,7 @@ namespace vsl {
 		 * @brief
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		VectorSkipList(const value_t& invalid) {
+		BitmappedVectorSkipList(const value_t& invalid) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -366,7 +366,7 @@ namespace vsl {
 		 * @param seed
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		VectorSkipList(const value_t& invalid, uint64_t seed) {
+		BitmappedVectorSkipList(const value_t& invalid, uint64_t seed) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -375,7 +375,7 @@ namespace vsl {
 			rng.seed(seed);
 		}
 
-		~VectorSkipList() {
+		~BitmappedVectorSkipList() {
 			// release one by one
 			SkipListNode* node = this->sentryHead.getRightNode(0);
 			while (node != nullptr && node != &this->sentryTail) {
