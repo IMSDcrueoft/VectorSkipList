@@ -50,7 +50,7 @@ See [LICENSE](LICENSE) file for full license text.
 
 ```cpp
 // Create a skip list with an invalid marker value
-VectorSkipList<int> skipList(-1);
+VectorSkipList<int,int> skipList(-1);
 
 // Set elements
 skipList[100] = 42;  // Set value 42 at index 100
