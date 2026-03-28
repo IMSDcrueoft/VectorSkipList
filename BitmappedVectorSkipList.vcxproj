@@ -23,7 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\bits.hpp" />
-    <ClInclude Include="src\vsl.hpp" />
+    <ClInclude Include="src\bvsl.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
