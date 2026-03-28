@@ -1,6 +1,6 @@
 /*
  * MIT License
- * Copyright (c) 2025 IMSDcrueoft (https://github.com/IMSDcrueoft)
+ * Copyright (c) 2026 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
 #pragma once
@@ -9,10 +9,12 @@
 #include <cstdint>
 #include <algorithm>
 #include <iostream>
+#include <memory_resource>
 
 #include "./bits.hpp"
+#include "./slab.hpp"
 
-namespace bvsl {
+namespace bbsl {
 	template<typename T, typename = std::enable_if<std::is_trivial_v<T>&& std::is_standard_layout_v<T>>>
 	T* _realloc(T* pointer, size_t oldCount, size_t newSize) {
 		if (newSize == 0) {
@@ -51,10 +53,9 @@ namespace bvsl {
 		}
 	};
 
-	using bitMap_t = uint32_t;
-	constexpr uint64_t capacity_init = 4;
-	constexpr uint64_t capacity_limit = sizeof(bitMap_t) * 8;
-	constexpr uint64_t index_align = (capacity_limit - 1); // Align to capacity limit
+	using bitMap_t = uint16_t;
+	constexpr uint64_t capacity_count = sizeof(bitMap_t) * 8;
+	constexpr uint64_t index_align = (capacity_count - 1); // Align to capacity limit
 
 	/**
 	 *  When the number of elements in the bottom layer > 2 ^ (current level count), add a new level.
@@ -66,7 +67,7 @@ namespace bvsl {
 	 *  avoiding the complexity caused by merging and splitting
 	 */
 	template <typename index_t, typename value_t, typename = std::enable_if<std::is_integral_v<index_t>&& std::is_trivial_v<value_t>&& std::is_standard_layout_v<value_t>>>
-	class BitmappedVectorSkipList {
+	class BitmappedBlockSkipList {
 	protected:
 		/**
 		 * @brief	It's just for storing data, so it's struct
@@ -76,14 +77,13 @@ namespace bvsl {
 		 */
 		struct SkipListNode {
 			SkipListNode** nodes = nullptr;		//right = level*2 ,left = level * 2 + 1
-			value_t* elements = nullptr;
 			index_t baseIndex;					//The array is offset by the index, which is almost unmodified
 
 			bitMap_t bitMap = 0;				//use bitMap to manage
-
 			uint8_t node_capacity;				//real capacity = *2
 			uint8_t level;						//height
-			uint8_t element_capacity = 0;		//capacity should not be too large, otherwise the detached/merged elements will be very expensive to copy
+
+			value_t elements[capacity_count];	//inline elements, avoid extra allocation when the node is not full, and the capacity is not large
 
 		public:
 			SkipListNode(const index_t baseIndex = 0, const uint8_t level = 0) {
@@ -92,15 +92,13 @@ namespace bvsl {
 				this->level = level;
 
 				//allocate nodePtrs
-				this->nodes = bvsl::_realloc(this->nodes, 0, this->node_capacity << 1);
+				this->nodes = bbsl::_realloc(this->nodes, 0, this->node_capacity << 1);
 				std::fill_n(this->nodes, this->node_capacity << 1, nullptr);
 			}
 
 			~SkipListNode() {
 				//no ownership
-				bvsl::_realloc(this->nodes, this->node_capacity << 1, 0);
-				//free elements
-				bvsl::_realloc(this->elements, this->element_capacity, 0);
+				bbsl::_realloc(this->nodes, this->node_capacity << 1, 0);
 			}
 
 			/**
@@ -117,7 +115,7 @@ namespace bvsl {
 			 * @return
 			 */
 			bool hasElement(const uint8_t index) {
-				return (index < this->element_capacity) && bits::get(this->bitMap, index);
+				return (index < bbsl::capacity_count) && bits::get(this->bitMap, index);
 			}
 
 			/**
@@ -126,7 +124,7 @@ namespace bvsl {
 			 * only when it is valid, the value will be set
 			 */
 			void getElement(const uint8_t index, value_t& value) const {
-				if (index >= this->element_capacity) return;
+				//if (index >= bbsl::capacity_count) return;
 				//set value
 				if (bits::get(this->bitMap, index)) value = this->elements[index];
 			}
@@ -136,16 +134,7 @@ namespace bvsl {
 			 * @param value
 			 */
 			void setElement(const uint8_t index, const value_t& value) {
-				if (index >= bvsl::capacity_limit) return;
-
-				//grow capacity
-				if (index >= this->element_capacity) {
-					uint8_t newCapacity = (this->element_capacity != 0) ? (this->element_capacity << 1) : bvsl::capacity_init;
-					while (index >= newCapacity) newCapacity <<= 1;
-
-					this->elements = bvsl::_realloc(this->elements, this->element_capacity, newCapacity);
-					this->element_capacity = newCapacity;
-				}
+				//if (index >= bbsl::capacity_count) return;
 
 				//set value and bitmap
 				this->elements[index] = value;
@@ -157,14 +146,14 @@ namespace bvsl {
 			 * @param index
 			 */
 			void deleteElement(const uint8_t index) {
-				if (index >= this->element_capacity) return;
+				//if (index >= bbsl::capacity_count) return;
 				bits::set_zero(this->bitMap, index);
 			}
 
 			void increaseLevel() {
 				if ((this->level + 1) >= this->node_capacity) {
 					uint8_t newCapacity = this->node_capacity << 1;
-					this->nodes = bvsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
+					this->nodes = bbsl::_realloc(this->nodes, this->node_capacity << 1, newCapacity << 1);
 					this->node_capacity = newCapacity;
 				}
 				++this->level;
@@ -192,16 +181,42 @@ namespace bvsl {
 			}
 
 			static bool isIndexValid(const uint64_t index) {
-				return index < bvsl::capacity_limit;
+				return index < bbsl::capacity_count;
+			}
+
+			static int8_t begin(const SkipListNode* node) {
+				if (node->bitMap == 0) return -1;
+				return bits::ctz64(node->bitMap);
+			}
+
+			static int8_t end(const SkipListNode* node) {
+				if (node->bitMap == 0) return -1;
+				uint8_t clzValue = bits::clz64(node->bitMap) - (64 - bbsl::capacity_count);
+				return bbsl::capacity_count - clzValue - 1;
+			}
+
+			static int8_t next(const SkipListNode* node, const int8_t index) {
+				if (index >= bbsl::capacity_count) return -1;
+				// 0b00101100, index = 2, nextBits = 0b00001011, nextIndex = 3
+				bitMap_t nextBits = node->bitMap >> (index + 1);
+				if (nextBits == 0) return -1; // ctz will return 64 if the input is 0, so we must directly return -1
+				return index + bits::ctz64(nextBits) + 1;
+			}
+
+			static int8_t prev(const SkipListNode* node, const int8_t index) {
+				if (index >= bbsl::capacity_count || index == 0) return -1;
+				// 0b00101100, index = 5, prevBits = 0b01100000, prevIndex = 3
+				bitMap_t prevBits = node->bitMap << (bbsl::capacity_count - index);
+				if (prevBits == 0) return -1;// clz will return 64 if the input is 0, so we must directly return -1
+				uint8_t clzValue = bits::clz64(node->bitMap) - (64 - bbsl::capacity_count);
+				return index - clzValue - 1;
 			}
 		};
 
-	private:
-		//thread local caches,shared among instances,coroutines danger
-		static inline thread_local SkipListNode* leftPathNodes[32];
-
 	protected:
-		bvsl::Xoroshiro64StarStar rng;
+		SkipListNode* leftPathNodes[32];
+		slab::ObjectPool<SkipListNode> nodePool;
+		bbsl::Xoroshiro64StarStar rng;
 
 		SkipListNode sentryHead;
 		SkipListNode sentryTail;
@@ -276,7 +291,7 @@ namespace bvsl {
 		 * @brief
 		 * @param index
 		 */
-		SkipListNode* findLeftNode(const index_t index) const {
+		SkipListNode* findLeftNode(const index_t index) {
 			SkipListNode* node = const_cast<SkipListNode*>(&this->sentryHead);
 			auto curLevel = this->level;
 
@@ -287,12 +302,12 @@ namespace bvsl {
 					node = next;
 				}
 				else {
-					leftPathNodes[curLevel] = node;
+					this->leftPathNodes[curLevel] = node;
 					--curLevel;
 				}
 			}
 
-			return leftPathNodes[0];
+			return this->leftPathNodes[0];
 		}
 
 		/**
@@ -303,7 +318,8 @@ namespace bvsl {
 		SkipListNode* insertNode(const index_t index) {
 			//make node
 			const auto level = this->getRandomLevel();
-			SkipListNode* newNode = new SkipListNode(index, level);
+			SkipListNode* newNode = this->nodePool.allocate(index, level);
+			//new SkipListNode(index, level);
 
 			//connect
 			SkipListNode* left = nullptr, * right = nullptr;
@@ -342,7 +358,8 @@ namespace bvsl {
 				right->setLeftNode(i, left);
 			}
 
-			delete node;
+			this->nodePool.deallocate_no_destruct(node);
+			//delete node;
 			--this->width;
 
 			constexpr auto minLevel = 6;
@@ -354,7 +371,7 @@ namespace bvsl {
 		 * @brief
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		BitmappedVectorSkipList(const value_t& invalid) {
+		BitmappedBlockSkipList(const value_t& invalid) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -366,7 +383,7 @@ namespace bvsl {
 		 * @param seed
 		 * @param invalid invalid value, it should be a default value that is not used in the data
 		 */
-		BitmappedVectorSkipList(const value_t& invalid, uint64_t seed) {
+		BitmappedBlockSkipList(const value_t& invalid, uint64_t seed) {
 			this->invalid = invalid;
 
 			this->sentryHead.setRightNode(0, &this->sentryTail);
@@ -375,12 +392,13 @@ namespace bvsl {
 			rng.seed(seed);
 		}
 
-		~BitmappedVectorSkipList() {
+		~BitmappedBlockSkipList() {
 			// release one by one
 			SkipListNode* node = this->sentryHead.getRightNode(0);
 			while (node != nullptr && node != &this->sentryTail) {
 				SkipListNode* next = node->getRightNode(0);
-				delete node;
+				this->nodePool.deallocate(node);
+				//delete node;
 				node = next;
 			}
 			// no need to free sentry node
@@ -469,6 +487,155 @@ namespace bvsl {
 			}
 
 			return this->invalid;
+		}
+
+	public:
+		template<typename Func>
+		void forEach(Func func) const {
+			SkipListNode* node = this->sentryHead.getRightNode(0);
+			while (node != nullptr && node != &this->sentryTail) {
+				for (int8_t i = SkipListNode::begin(node); i != -1; i = SkipListNode::next(node, i)) {
+					func(node->elements[i], node->baseIndex + i);
+				}
+				node = node->getRightNode(0);
+			}
+		}
+
+		template<typename Func>
+		bool some(Func func) const {
+			SkipListNode* node = this->sentryHead.getRightNode(0);
+			while (node != nullptr && node != &this->sentryTail) {
+				for (int8_t i = SkipListNode::begin(node); i != -1; i = SkipListNode::next(node, i)) {
+					if (func(node->elements[i], node->baseIndex + i)) return true;
+				}
+				node = node->getRightNode(0);
+			}
+			return false;
+		}
+
+		template<typename Func>
+		bool every(Func func) const {
+			SkipListNode* node = this->sentryHead.getRightNode(0);
+			while (node != nullptr && node != &this->sentryTail) {
+				for (int8_t i = SkipListNode::begin(node); i != -1; i = SkipListNode::next(node, i)) {
+					if (!func(node->elements[i], node->baseIndex + i)) return false;
+				}
+				node = node->getRightNode(0);
+			}
+			return true;
+		}
+
+		class IterObject {
+		private:
+			BitmappedBlockSkipList* skiplist = nullptr;
+			SkipListNode* node = nullptr;
+			int8_t inside_index = 0;
+
+		public:
+			IterObject() = delete;
+			IterObject(BitmappedBlockSkipList* skiplist, SkipListNode* node, int8_t inside_index)
+				: skiplist(skiplist), node(node), inside_index(inside_index) {
+			}
+
+			~IterObject() = default;
+
+			const value_t& operator*() const {
+				// we don't know if user will call operator* when the node is deleted, so we return invalid in this case
+				return node->hasElement(inside_index) ? node->elements[inside_index] : skiplist->invalid;
+			}
+
+			index_t key() const {
+				return (this->node != nullptr) ? (this->node->baseIndex + this->inside_index) : 0;
+			}
+
+			bool setValue(const value_t& value) {
+				if (this->node == nullptr) return false;
+				this->node->setElement(this->inside_index, value);
+				return true;
+			}
+
+			IterObject& operator++() {
+				if (this->node == nullptr) return *this;
+				int8_t nextIndex = SkipListNode::next(this->node, this->inside_index);
+
+				if (nextIndex == -1) {
+					this->node = this->node->getRightNode(0);
+					if (this->node != nullptr && this->node != &this->skiplist->sentryTail) {
+						this->inside_index = SkipListNode::begin(this->node);
+					}
+					else {
+						this->node = nullptr;
+						this->inside_index = 0;
+					}
+				}
+				else {
+					this->inside_index = nextIndex;
+				}
+
+				return *this;
+			}
+
+			IterObject& operator--() {
+				if (this->node == nullptr) return *this;
+				int8_t prevIndex = SkipListNode::prev(this->node, this->inside_index);
+				if (prevIndex == -1) {
+					this->node = this->node->getLeftNode(0);
+					if (this->node != nullptr && this->node != &this->skiplist->sentryHead) {
+						this->inside_index = SkipListNode::end(this->node);
+					}
+					else {
+						this->node = nullptr;
+						this->inside_index = 0;
+					}
+				}
+				else {
+					this->inside_index = prevIndex;
+				}
+				return *this;
+			}
+
+			bool operator==(const IterObject& other) const {
+				return this->skiplist == other.skiplist && this->node == other.node && this->inside_index == other.inside_index;
+			}
+
+			bool operator!=(const IterObject& other) const {
+				return !(*this == other);
+			}
+
+			explicit operator bool() const {
+				return this->node != nullptr;
+			}
+		};
+
+		IterObject begin() {
+			SkipListNode* node = this->sentryHead.getRightNode(0);
+
+			if (node == &this->sentryTail) {
+				return IterObject(this, nullptr, 0);
+			}
+			else {
+				return IterObject(this, node, SkipListNode::begin(node));
+			}
+		}
+
+		IterObject end() {
+			return IterObject(this, nullptr, 0);
+		}
+
+		// reverse
+		IterObject rbegin() {
+			SkipListNode* node = this->sentryTail.getLeftNode(0);
+
+			if (node == &this->sentryHead) {
+				return IterObject(this, nullptr, 0);
+			}
+			else {
+				return IterObject(this, node, SkipListNode::end(node));
+			}
+		}
+
+		IterObject rend() {
+			return IterObject(this, nullptr, 0);
 		}
 	};
 }

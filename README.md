@@ -1,40 +1,27 @@
-# Bitmapped Vector Skip List (BVSL)
+# Bitmapped Block Skip List (BBSL)
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/VectorSkipList)
 
-A **memory‑efficient sparse array** that combines skip list indexing with block‑based storage.  
-Each block is a **dynamically sized vector** tracked by a bitmap — offering better cache locality and significantly lower memory overhead than traditional tree‑based structures.
+A **high‑performance sparse array** that combines skip list indexing with **fixed‑size block storage**. Each block uses a bitmap to track occupied slots and stores elements **inline** — delivering exceptional cache locality and traversal speed.
 
 ## ✨ Features
 
-- **Block‑based storage** – Elements are grouped into blocks (up to 32 slots), reducing pointer overhead and improving spatial locality.
-- **Bitmap indexing** – A `uint32_t` bitmap marks which slots inside a block are occupied, enabling O(1) presence checks and compact memory layout.
+- **Inline block storage** – Elements are stored directly inside each node, eliminating an extra pointer indirection and improving cache efficiency.
+- **Bitmap indexing** – A configurable bitmap tracks which slots within a block are occupied, enabling O(1) presence checks.
 - **Skip list indexing** – Blocks are organized as a skip list, providing expected O(log n) search, insert, and delete.
-- **Adaptive sizing** – Block capacities grow dynamically up to a fixed limit (default 32), balancing memory use and performance.
-- **Self‑adjusting levels** – Skip list height automatically scales with the number of blocks, not individual elements.
-- **Low memory footprint** – For 1 million elements, BVSL uses ~14 MB vs. ~123 MB for `std::map` (red‑black tree).
-
-## 📊 Performance
-
-| Operation (1 M elements) | `std::map` | `BVSL` |
-|--------------------------|------------|------|
-| Insert                   | 0.130 s    | 0.034 s |
-| Sequential query         | 0.040 s    | 0.027 s |
-| Random query             | 0.265 s    | 0.195 s |
-| Delete (200 k)           | 0.021 s    | 0.005 s |
-| Memory                   | 123 MB     | 14 MB   |
-
-> Mixed insert/delete workloads are still a strength of `std::map`; BVSL excels in sparse array scenarios where deletions are rare.
+- **Self‑adjusting levels** – Skip list height automatically scales with the number of blocks.
+- **Object pool allocation** – Uses a custom slab allocator for fast node allocation/deallocation.
+- **STL‑style iterators** – Forward and reverse iteration with begin/end/rbegin/rend support.
+- **Functional traversal** – `forEach`, `some`, `every` methods for efficient bulk operations.
 
 ## 🚀 Quick Start
 
 ```cpp
-#include "bvsl.hpp"
+#include "bbsl.hpp"
 
 // Create a sparse array with -1 as "empty" value
-bvsl::BitmappedVectorSkipList<int, int> arr(-1);
+bbsl::BitmappedBlockSkipList<int, int> arr(-1);
 
 // Write elements
 arr[100] = 42;
@@ -48,40 +35,77 @@ val = arr[200];         // -1 (empty)
 // Delete
 arr.erase(100);
 bool exists = arr.has(100);   // false
+
+// Iteration (STL-style)
+for (auto it = arr.begin(); it != arr.end(); ++it) {
+    std::cout << it.key() << " -> " << *it << "\n";
+}
+
+// Functional traversal
+arr.forEach([](const int& value, int index) {
+    std::cout << index << ": " << value << "\n";
+});
 ```
 
 ## 🧠 Design Highlights
 
-### Bitmapped Blocks
-Each `SkipListNode` manages a small vector (up to 32 slots) using a bitmap:
-- `bitMap` – 32‑bit mask indicating occupied slots.
-- `elements` – Contiguous array of values.
-- `baseIndex` – Starting index of the block (always aligned to 32).
+### Inline Block Storage
+Each `SkipListNode` contains a fixed‑size inline array:
+- `elements[]` – Stored directly in the node (no separate heap allocation per node)
+- `bitMap` – Bitmask indicating occupied slots
+- `baseIndex` – Starting index of the block (aligned to block size)
 
-### Dynamic Growth
-- Block capacity starts at 4 and doubles when needed, but never exceeds 32.
-- This keeps block size small, improves cache efficiency, and avoids huge copy costs.
+This design eliminates an extra pointer dereference and dramatically improves cache locality during traversal.
 
-### Skip List Over Blocks
-- Indexing is performed over **blocks**, not individual elements.
-- Height is determined by block count: `height = log2(number_of_blocks)`.
-- Expected search cost: O(log (n / 32)) – flatter than a traditional skip list.
+### Configurable Block Size
+The block size is determined by the bitmap type:
+```cpp
+using bitMap_t = uint16_t;  // 16 slots per block
+// or
+using bitMap_t = uint32_t;  // 32 slots per block
+// or
+using bitMap_t = uint8_t;   // 8 slots per block
+```
 
-### Memory‑Aware Pointers
-- Left and right pointers for all levels are stored interleaved in a single `nodes` array: `right = level*2`, `left = level*2+1`.
-- Reduces allocation overhead and improves pointer locality.
+### Bitmap Operations
+```cpp
+// Fast iteration over occupied slots only
+for (int8_t i = SkipListNode::begin(node); i != -1; i = SkipListNode::next(node, i)) {
+    process(node->elements[i]);  // Only iterate existing elements
+}
+```
 
-### Thread‑Local Path Cache
-- A `thread_local` array caches the search path, eliminating recursion and repeated allocations.
+### Object Pool Allocation
+- Custom `slab::ObjectPool` eliminates per‑node heap allocation overhead
+- Batch allocation improves memory locality and reduces fragmentation
+
+### STL‑Compatible Iterators
+- Forward iterator (`begin()` / `end()`)
+- Reverse iterator (`rbegin()` / `rend()`)
+- Bidirectional traversal support (`operator++`, `operator--`)
 
 ## 🔧 Implementation Details
 
 | Component               | Description |
 |-------------------------|-------------|
-| `SkipListNode`          | Block containing a bitmap, value vector, and level pointers. |
-| `BitmappedVectorSkipList`        | Main container with sentinel head/tail and automatic level adjustment. |
-| `Xoroshiro64StarStar`   | Fast RNG for probabilistic level assignment. |
-| `bits.hpp`              | Optimized bit operations (popcount, ctz, ceiling powers of two). |
+| `SkipListNode`          | Block containing inline elements, bitmap, and level pointers |
+| `BitmappedBlockSkipList` | Main container with sentinel head/tail and automatic level adjustment |
+| `Xoroshiro64StarStar`   | Fast RNG for probabilistic level assignment |
+| `slab::ObjectPool`      | Custom allocator for node pooling |
+| `bits.hpp`              | Optimized bit operations (popcount, ctz, clz, etc.) |
+
+## 📈 When to Use BBSL
+
+### ✅ Ideal Use Cases
+- **Read‑heavy workloads** – Fast queries and iteration
+- **Dense or semi‑dense data** – Blocks with good occupancy
+- **Traversal‑intensive operations** – Full scans, aggregations, transformations
+- **Cache‑sensitive applications** – Game engines, real‑time systems
+- **Small to medium element types** – Inline storage works efficiently
+
+### ⚠️ Considerations
+- **Extremely sparse data** – Consider whether block alignment suits your access pattern
+- **Very large element types** – Inline storage may waste memory if occupancy is low
 
 ## 📄 License
 

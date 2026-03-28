@@ -3,7 +3,7 @@
  * Copyright (c) 2026 IMSDcrueoft (https://github.com/IMSDcrueoft)
  * See LICENSE file in the root directory for full license text.
 */
-#include "./src/bvsl.hpp"
+#include "./src/bbsl.hpp"
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -13,8 +13,8 @@
 #include <random>
 #include <algorithm>
 
-constexpr auto testCount = 1000000;
-using namespace bvsl;
+constexpr auto testCount = 1'000'000;
+using namespace bbsl;
 
 // Zipf distribution generator for realistic access patterns
 class ZipfGenerator {
@@ -46,7 +46,7 @@ public:
 };
 
 void test1() {
-    BitmappedVectorSkipList<uint64_t, double> skiplist(std::nan(""));
+    BitmappedBlockSkipList<uint64_t, double> skiplist(std::nan(""));
 
     // test insert
     for (uint64_t i = 0; i < 10; ++i) {
@@ -82,7 +82,7 @@ void test1() {
 
 void test2() {
     // Test large range insertion and sparsity
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
     for (uint64_t i = 0; i < 1000; i += 100) {
         skiplist[i] = static_cast<int>(i * 2);
     }
@@ -103,7 +103,7 @@ void test2() {
 
 void test3() {
     // Test deletion and reinsertion
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-999);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-999);
     skiplist[10] = 42;
     assert(skiplist.has(10));
     int value = skiplist[10];
@@ -121,7 +121,7 @@ void test3() {
 
 void test4() {
     // Test boundary conditions
-    BitmappedVectorSkipList<uint64_t, double> skiplist(std::nan(""));
+    BitmappedBlockSkipList<uint64_t, double> skiplist(std::nan(""));
     assert(!skiplist.has(0));
     double value = skiplist[0];
     assert(std::isnan(value));
@@ -183,7 +183,7 @@ void test_performance_stdmap(uint64_t seed) {
 
 void test_performance(uint64_t seed) {
     const uint64_t N = testCount;
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
     auto start_insert = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < N; ++i) {
@@ -191,7 +191,7 @@ void test_performance(uint64_t seed) {
     }
     auto end_insert = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> insert_duration = end_insert - start_insert;
-    std::cout << "[vsl] Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
+    std::cout << "[bsl] Insert " << N << " elements took: " << insert_duration.count() << " seconds" << std::endl;
 
     auto start_query = std::chrono::high_resolution_clock::now();
     int sum = 0;
@@ -201,10 +201,10 @@ void test_performance(uint64_t seed) {
     }
     auto end_query = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> query_duration = end_query - start_query;
-    std::cout << "[vsl] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
-    std::cout << "[vsl] Query sum: " << sum << std::endl;
+    std::cout << "[bsl] Query " << N << " elements took: " << query_duration.count() << " seconds" << std::endl;
+    std::cout << "[bsl] Query sum: " << sum << std::endl;
 
-    std::cout << "[vsl] level " << skiplist.getLevel() << std::endl;
+    std::cout << "[bsl] level " << skiplist.getLevel() << std::endl;
 
     auto start_random_query = std::chrono::high_resolution_clock::now();
     int random_sum = 0;
@@ -219,8 +219,8 @@ void test_performance(uint64_t seed) {
     }
     auto end_random_query = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> random_query_duration = end_random_query - start_random_query;
-    std::cout << "[vsl] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
-    std::cout << "[vsl] Random query sum: " << random_sum << std::endl;
+    std::cout << "[bsl] Random query " << N << " times took: " << random_query_duration.count() << " seconds" << std::endl;
+    std::cout << "[bsl] Random query sum: " << random_sum << std::endl;
 }
 
 void test_performance_random_stdmap(uint64_t seedA, uint64_t seedB) {
@@ -257,32 +257,32 @@ void test_performance_random_stdmap(uint64_t seedA, uint64_t seedB) {
 void test_performance_random(uint64_t seedA, uint64_t seedB) {
     const uint64_t N = testCount;
     const uint64_t deleteCount = static_cast<uint64_t>(N * 0.2);
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
-    auto start_vsl_insert = std::chrono::high_resolution_clock::now();
+    auto start_bsl_insert = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < N; ++i) skiplist[i] = static_cast<int>(i);
-    auto end_vsl_insert = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Insert " << N << " : " << (end_vsl_insert - start_vsl_insert).count() / 1e9 << "s\n";
+    auto end_bsl_insert = std::chrono::high_resolution_clock::now();
+    std::cout << "[bsl] Insert " << N << " : " << (end_bsl_insert - start_bsl_insert).count() / 1e9 << "s\n";
 
     uint64_t seed = seedA, a = 6364136223846793005ULL, c = 1;
-    auto start_vsl_delete = std::chrono::high_resolution_clock::now();
+    auto start_bsl_delete = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < deleteCount; ++i) {
         seed = seed * a + c;
         skiplist.erase(seed);
     }
-    auto end_vsl_delete = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Delete " << deleteCount << " : " << (end_vsl_delete - start_vsl_delete).count() / 1e9 << "s\n";
+    auto end_bsl_delete = std::chrono::high_resolution_clock::now();
+    std::cout << "[bsl] Delete " << deleteCount << " : " << (end_bsl_delete - start_bsl_delete).count() / 1e9 << "s\n";
 
     seed = seedB;
-    auto start_vsl_write_delete = std::chrono::high_resolution_clock::now();
+    auto start_bsl_write_delete = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < N; ++i) {
         seed = seed * a + c;
         uint64_t idx = seed;
         if (i % 2 == 0) skiplist[idx] = static_cast<int>(i);
         else skiplist.erase(idx);
     }
-    auto end_vsl_write_delete = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Write/Delete " << N << " : " << (end_vsl_write_delete - start_vsl_write_delete).count() / 1e9 << "s\n";
+    auto end_bsl_write_delete = std::chrono::high_resolution_clock::now();
+    std::cout << "[bsl] Write/Delete " << N << " : " << (end_bsl_write_delete - start_bsl_write_delete).count() / 1e9 << "s\n";
 }
 
 // ============= New: Sequential Access Performance Tests =============
@@ -312,9 +312,9 @@ void test_performance_sequential_stdmap(uint64_t seed) {
     std::cout << "[std::map] Sum: " << sum << std::endl;
 }
 
-void test_performance_sequential_vsl(uint64_t seed) {
+void test_performance_sequential_bsl(uint64_t seed) {
     const uint64_t N = testCount;
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
     // Sequential insertion
     auto start_insert = std::chrono::high_resolution_clock::now();
@@ -322,7 +322,7 @@ void test_performance_sequential_vsl(uint64_t seed) {
         skiplist[i] = static_cast<int>(i);
     }
     auto end_insert = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Sequential Insert " << N << " : "
+    std::cout << "[bsl] Sequential Insert " << N << " : "
         << (end_insert - start_insert).count() / 1e9 << "s\n";
 
     // Sequential query
@@ -332,10 +332,10 @@ void test_performance_sequential_vsl(uint64_t seed) {
         sum += skiplist[i];
     }
     auto end_query = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Sequential Query " << N << " : "
+    std::cout << "[bsl] Sequential Query " << N << " : "
         << (end_query - start_query).count() / 1e9 << "s\n";
-    std::cout << "[vsl] Sum: " << sum << std::endl;
-    std::cout << "[vsl] level " << skiplist.getLevel() << std::endl;
+    std::cout << "[bsl] Sum: " << sum << std::endl;
+    std::cout << "[bsl] level " << skiplist.getLevel() << std::endl;
 }
 
 // ============= New: Zipf Distribution (Realistic Scenario) Tests =============
@@ -379,9 +379,9 @@ void test_performance_zipf_stdmap(uint64_t seed) {
         << (end_mixed - start_mixed).count() / 1e9 << "s\n";
 }
 
-void test_performance_zipf_vsl(uint64_t seed) {
+void test_performance_zipf_bsl(uint64_t seed) {
     const uint64_t N = testCount;
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
     ZipfGenerator zipf(seed, N, 0.8);
 
     // Pre-insert all data
@@ -397,10 +397,10 @@ void test_performance_zipf_vsl(uint64_t seed) {
         sum += skiplist[idx];
     }
     auto end_query = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Zipf Query (α=0.8) " << N << " : "
+    std::cout << "[bsl] Zipf Query (α=0.8) " << N << " : "
         << (end_query - start_query).count() / 1e9 << "s\n";
-    std::cout << "[vsl] Sum: " << sum << std::endl;
-    std::cout << "[vsl] level " << skiplist.getLevel() << std::endl;
+    std::cout << "[bsl] Sum: " << sum << std::endl;
+    std::cout << "[bsl] level " << skiplist.getLevel() << std::endl;
 
     // Zipf distribution mixed operations (80% query, 20% update)
     ZipfGenerator zipf2(seed + 1, N, 0.8);
@@ -415,7 +415,7 @@ void test_performance_zipf_vsl(uint64_t seed) {
         }
     }
     auto end_mixed = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Zipf Mixed (80/20) " << N << " : "
+    std::cout << "[bsl] Zipf Mixed (80/20) " << N << " : "
         << (end_mixed - start_mixed).count() / 1e9 << "s\n";
 }
 
@@ -446,9 +446,9 @@ void test_performance_range_stdmap() {
     std::cout << "[std::map] Range sum: " << sum << std::endl;
 }
 
-void test_performance_range_vsl() {
+void test_performance_range_bsl() {
     const uint64_t N = testCount;
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
     for (uint64_t i = 0; i < N; ++i) {
         skiplist[i] = static_cast<int>(i);
@@ -464,9 +464,9 @@ void test_performance_range_vsl() {
         }
     }
     auto end_range = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Range queries (500 elements x 1000) : "
+    std::cout << "[bsl] Range queries (500 elements x 1000) : "
         << (end_range - start_range).count() / 1e9 << "s\n";
-    std::cout << "[vsl] Range sum: " << sum << std::endl;
+    std::cout << "[bsl] Range sum: " << sum << std::endl;
 }
 
 // ============= New: Batch Operation Performance Tests =============
@@ -487,9 +487,9 @@ void test_performance_batch_stdmap() {
         << (end_batch - start_batch).count() / 1e9 << "s\n";
 }
 
-void test_performance_batch_vsl() {
+void test_performance_batch_bsl() {
     const uint64_t N = testCount;
-    BitmappedVectorSkipList<uint64_t, int> skiplist(-1);
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
     // Batch insert (1000 per batch)
     auto start_batch = std::chrono::high_resolution_clock::now();
@@ -499,8 +499,167 @@ void test_performance_batch_vsl() {
         }
     }
     auto end_batch = std::chrono::high_resolution_clock::now();
-    std::cout << "[vsl] Batch insert (1000/batch) : "
+    std::cout << "[bsl] Batch insert (1000/batch) : "
         << (end_batch - start_batch).count() / 1e9 << "s\n";
+}
+
+// ============= New: Traversal Performance Comparison Tests =============
+
+void test_traversal_performance() {
+    const uint64_t N = testCount;
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
+
+    // Insert dense data
+    for (uint64_t i = 0; i < N; ++i) {
+        skiplist[i] = static_cast<int>(i);
+    }
+    std::cout << "\n========== Traversal Performance Tests ==========\n";
+    std::cout << "Data: " << N << " dense elements\n";
+
+    // Test 1: forEach
+    auto start = std::chrono::high_resolution_clock::now();
+    long long sum1 = 0;
+    skiplist.forEach([&sum1](int value, uint64_t) {
+        sum1 += value;
+        });
+    auto end = std::chrono::high_resolution_clock::now();
+    double time_forEach = (end - start).count() / 1e9;
+    std::cout << "[bsl] forEach: " << time_forEach << "s, sum=" << sum1 << std::endl;
+
+    // Test 2: Iterator (begin/end)
+    start = std::chrono::high_resolution_clock::now();
+    long long sum2 = 0;
+    for (auto it = skiplist.begin(); it != skiplist.end(); ++it) {
+        sum2 += *it;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_iterator = (end - start).count() / 1e9;
+    std::cout << "[bsl] Iterator: " << time_iterator << "s, sum=" << sum2 << std::endl;
+
+    // Test 3: Reverse iterator (rbegin/rend)
+    start = std::chrono::high_resolution_clock::now();
+    long long sum3 = 0;
+    for (auto it = skiplist.rbegin(); it != skiplist.rend(); --it) {
+        sum3 += *it;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_reverse = (end - start).count() / 1e9;
+    std::cout << "[bsl] Reverse Iterator: " << time_reverse << "s, sum=" << sum3 << std::endl;
+
+    // Test 4: Random access (operator[])
+    start = std::chrono::high_resolution_clock::now();
+    long long sum4 = 0;
+    for (uint64_t i = 0; i < N; ++i) {
+        sum4 += skiplist[i];
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_random = (end - start).count() / 1e9;
+    std::cout << "[bsl] Random Access: " << time_random << "s, sum=" << sum4 << std::endl;
+
+    // Summary
+    std::cout << "\n--- Performance Summary (forEach as baseline) ---\n";
+    std::cout << "forEach:       " << time_forEach << "s (1.00x)\n";
+    std::cout << "Iterator:      " << time_iterator << "s (" << (time_iterator / time_forEach) << "x)\n";
+    std::cout << "Reverse Iter:  " << time_reverse << "s (" << (time_reverse / time_forEach) << "x)\n";
+    std::cout << "Random Access: " << time_random << "s (" << (time_random / time_forEach) << "x)\n";
+
+    // Verify all sums match
+    assert(sum1 == sum2 && sum2 == sum3 && sum3 == sum4);
+}
+
+void test_sparse_traversal_performance() {
+    const uint64_t N = testCount;
+    BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
+
+    // Insert sparse data (10% density)
+    for (uint64_t i = 0; i < N; i += 10) {
+        skiplist[i] = static_cast<int>(i);
+    }
+    uint64_t element_count = N / 10;
+    std::cout << "\n========== Sparse Traversal Performance Tests ==========\n";
+    std::cout << "Data: " << element_count << " sparse elements (10% density)\n";
+
+    // Test 1: forEach
+    auto start = std::chrono::high_resolution_clock::now();
+    long long sum1 = 0;
+    skiplist.forEach([&sum1](int value, uint64_t) {
+        sum1 += value;
+        });
+    auto end = std::chrono::high_resolution_clock::now();
+    double time_forEach = (end - start).count() / 1e9;
+    std::cout << "[bsl] forEach: " << time_forEach << "s, sum=" << sum1 << std::endl;
+
+    // Test 2: Iterator
+    start = std::chrono::high_resolution_clock::now();
+    long long sum2 = 0;
+    for (auto it = skiplist.begin(); it != skiplist.end(); ++it) {
+        sum2 += *it;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_iterator = (end - start).count() / 1e9;
+    std::cout << "[bsl] Iterator: " << time_iterator << "s, sum=" << sum2 << std::endl;
+
+    // Test 3: Random access (only existing keys)
+    start = std::chrono::high_resolution_clock::now();
+    long long sum3 = 0;
+    for (uint64_t i = 0; i < N; i += 10) {
+        sum3 += skiplist[i];
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_random = (end - start).count() / 1e9;
+    std::cout << "[bsl] Random Access (existing): " << time_random << "s, sum=" << sum3 << std::endl;
+
+    std::cout << "\n--- Sparse Performance Summary ---\n";
+    std::cout << "forEach:  " << time_forEach << "s\n";
+    std::cout << "Iterator: " << time_iterator << "s (" << (time_iterator / time_forEach) << "x)\n";
+    std::cout << "Random:   " << time_random << "s (" << (time_random / time_forEach) << "x)\n";
+
+    assert(sum1 == sum2 && sum2 == sum3);
+}
+
+void test_stdmap_traversal_performance() {
+    const uint64_t N = testCount;
+    std::map<uint64_t, int> m;
+
+    // Insert dense data
+    for (uint64_t i = 0; i < N; ++i) {
+        m[i] = static_cast<int>(i);
+    }
+
+    std::cout << "\n========== std::map Traversal Performance ==========\n";
+    std::cout << "Data: " << N << " dense elements\n";
+
+    // Test 1: Iterator
+    auto start = std::chrono::high_resolution_clock::now();
+    long long sum1 = 0;
+    for (auto it = m.begin(); it != m.end(); ++it) {
+        sum1 += it->second;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double time_iterator = (end - start).count() / 1e9;
+    std::cout << "[std::map] Iterator: " << time_iterator << "s, sum=" << sum1 << std::endl;
+
+    // Test 2: Range-based for
+    start = std::chrono::high_resolution_clock::now();
+    long long sum2 = 0;
+    for (const auto& pair : m) {
+        sum2 += pair.second;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_range = (end - start).count() / 1e9;
+    std::cout << "[std::map] Range-for: " << time_range << "s, sum=" << sum2 << std::endl;
+
+    // Test 3: Random access
+    start = std::chrono::high_resolution_clock::now();
+    long long sum3 = 0;
+    for (uint64_t i = 0; i < N; ++i) {
+        sum3 += m[i];
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_random = (end - start).count() / 1e9;
+    std::cout << "[std::map] Random Access: " << time_random << "s, sum=" << sum3 << std::endl;
+
+    assert(sum1 == sum2 && sum2 == sum3);
 }
 
 int main() {
@@ -524,19 +683,24 @@ int main() {
 
     std::cout << "\n========== New: Sequential Access Performance Tests ==========\n";
     test_performance_sequential_stdmap(seedA);
-    test_performance_sequential_vsl(seedA);
+    test_performance_sequential_bsl(seedA);
 
     std::cout << "\n========== New: Zipf Distribution (Realistic Scenario) ==========\n";
     test_performance_zipf_stdmap(seedA);
-    test_performance_zipf_vsl(seedA);
+    test_performance_zipf_bsl(seedA);
 
     std::cout << "\n========== New: Range Query Performance Tests ==========\n";
     test_performance_range_stdmap();
-    test_performance_range_vsl();
+    test_performance_range_bsl();
 
     std::cout << "\n========== New: Batch Operation Performance Tests ==========\n";
     test_performance_batch_stdmap();
-    test_performance_batch_vsl();
+    test_performance_batch_bsl();
+
+    std::cout << "\n========== New: traversal Performance Tests ==========\n";
+    test_traversal_performance();
+    test_sparse_traversal_performance();
+    test_stdmap_traversal_performance();
 
     return 0;
 }
