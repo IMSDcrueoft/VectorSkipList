@@ -291,7 +291,7 @@ namespace bbsl {
 		 * @brief
 		 * @param index
 		 */
-		SkipListNode* findLeftNode(const index_t index) {
+		SkipListNode* findLeftNode(const index_t index) const {
 			SkipListNode* node = const_cast<SkipListNode*>(&this->sentryHead);
 			auto curLevel = this->level;
 
