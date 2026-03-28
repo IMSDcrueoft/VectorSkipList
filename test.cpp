@@ -779,6 +779,13 @@ void test_hashmap_traversal_performance() {
 }
 
 int main() {
+    std::cout << "Starting data structure `BBSL` benchmark test" << std::endl;
+#ifndef NDEBUG
+    std::cout << "Running in Debug mode" << std::endl;
+#else
+    std::cout << "Running in Release mode" << std::endl;
+#endif
+
     // Basic functionality tests
     test1();
     test2();
