@@ -12,6 +12,7 @@
 #include <map>
 #include <random>
 #include <algorithm>
+#include <unordered_map>
 
 constexpr auto testCount = 1'000'000;
 using namespace bbsl;
@@ -181,7 +182,7 @@ void test_performance_stdmap(uint64_t seed) {
     std::cout << "[std::map] Random query sum: " << random_sum << std::endl;
 }
 
-void test_performance(uint64_t seed) {
+void test_performance_bsl(uint64_t seed) {
     const uint64_t N = testCount;
     BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
 
@@ -254,7 +255,7 @@ void test_performance_random_stdmap(uint64_t seedA, uint64_t seedB) {
     std::cout << "[std::map] Write/Delete " << N << " : " << (end_map_write_delete - start_map_write_delete).count() / 1e9 << "s\n";
 }
 
-void test_performance_random(uint64_t seedA, uint64_t seedB) {
+void test_performance_random_bsl(uint64_t seedA, uint64_t seedB) {
     const uint64_t N = testCount;
     const uint64_t deleteCount = static_cast<uint64_t>(N * 0.2);
     BitmappedBlockSkipList<uint64_t, int> skiplist(-1);
@@ -729,6 +730,54 @@ void test_vector_traversal_performance() {
     assert(sum1 == sum2 && sum2 == sum3 && sum3 == sum4 && sum4 == sum5);
 }
 
+void test_hashmap_traversal_performance() {
+    const uint64_t N = testCount;
+    std::unordered_map<uint64_t, int> hm;
+
+    // Insert dense data
+    // Note: unordered_map does not guarantee order, but we insert 0..N
+    for (uint64_t i = 0; i < N; ++i) {
+        hm[i] = static_cast<int>(i);
+    }
+
+    std::cout << "\n========== std::unordered_map Traversal Performance ==========\n";
+    std::cout << "Data: " << N << " dense elements\n";
+
+    // Test 1: Iterator
+    auto start = std::chrono::high_resolution_clock::now();
+    long long sum1 = 0;
+    for (auto it = hm.begin(); it != hm.end(); ++it) {
+        sum1 += it->second;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double time_iterator = (end - start).count() / 1e9;
+    std::cout << "[unordered_map] Iterator: " << time_iterator << "s, sum=" << sum1 << std::endl;
+
+    // Test 2: Range-based for
+    start = std::chrono::high_resolution_clock::now();
+    long long sum2 = 0;
+    for (const auto& pair : hm) {
+        sum2 += pair.second;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_range = (end - start).count() / 1e9;
+    std::cout << "[unordered_map] Range-for: " << time_range << "s, sum=" << sum2 << std::endl;
+
+    // Test 3: Random access (Key lookup)
+    // Note: This is O(1) average for hash map, unlike O(log N) for std::map
+    start = std::chrono::high_resolution_clock::now();
+    long long sum3 = 0;
+    for (uint64_t i = 0; i < N; ++i) {
+        sum3 += hm[i];
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_random = (end - start).count() / 1e9;
+    std::cout << "[unordered_map] Random Access: " << time_random << "s, sum=" << sum3 << std::endl;
+
+    // Verify correctness
+    assert(sum1 == sum2 && sum2 == sum3);
+}
+
 int main() {
     // Basic functionality tests
     test1();
@@ -738,15 +787,17 @@ int main() {
 
     // Generate random seeds using system time and other sources
     auto now = std::chrono::high_resolution_clock::now();
-    uint64_t seedA = now.time_since_epoch().count();
-    now = std::chrono::high_resolution_clock::now(); // Get fresh time
-    uint64_t seedB = now.time_since_epoch().count() ^ 0x5DEECE66DLL;
+    uint64_t timeSeed = now.time_since_epoch().count();
+
+    std::random_device rd;
+    uint64_t seedA = timeSeed ^ (static_cast<uint64_t>(rd()) << 32 | rd());
+    uint64_t seedB = seedA ^ 0x5DEECE66DLL;
 
     std::cout << "\n========== Original Performance Tests (Random Access) ==========\n";
     test_performance_stdmap(seedA);
-    test_performance(seedA);
+    test_performance_bsl(seedA);
     test_performance_random_stdmap(seedA, seedB);
-    test_performance_random(seedA, seedB);
+    test_performance_random_bsl(seedA, seedB);
 
     std::cout << "\n========== New: Sequential Access Performance Tests ==========\n";
     test_performance_sequential_stdmap(seedA);
@@ -768,6 +819,7 @@ int main() {
     test_traversal_performance();
     test_sparse_traversal_performance();
     test_stdmap_traversal_performance();
+    test_hashmap_traversal_performance();
     test_vector_traversal_performance();
 
     return 0;

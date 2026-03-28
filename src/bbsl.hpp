@@ -337,7 +337,7 @@ namespace bbsl {
 			}
 
 			++this->width;
-			if (this->width > (1ULL << this->level)) {
+			if (this->width >= (1ULL << this->level)) {
 				increaseLevel();
 			}
 
@@ -368,8 +368,11 @@ namespace bbsl {
 			this->leftPathNodes[0] = nullptr;
 
 			constexpr auto minLevel = 6;
-			if (this->level < minLevel || this->width >((1ULL << this->level) - (1ULL << minLevel))) return;
-			this->decreaseLevel();
+			if (this->level < minLevel) return;
+
+			if (this->width < (1ULL << (this->level - 1))) {
+				this->decreaseLevel();
+			}
 		}
 	public:
 		/**
