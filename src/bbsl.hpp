@@ -326,6 +326,7 @@ namespace bbsl {
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
+				// must call findLeftNode before insertNode, so leftPathNodes is valid
 				left = leftPathNodes[i];
 				right = left->getRightNode(i);
 
