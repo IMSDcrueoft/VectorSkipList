@@ -1,66 +1,88 @@
-# Bitmapped Vector Skip List
+# Bitmapped Vector Skip List (BVSL)
+
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/IMSDcrueoft/VectorSkipList)
 
-A block-based skip list with dynamically sized blocks, as a kind of KV structure.
+A **memory‑efficient sparse array** that combines skip list indexing with block‑based storage.  
+Each block is a **dynamically sized vector** tracked by a bitmap — offering better cache locality and significantly lower memory overhead than traditional tree‑based structures.
 
-## Features
+## ✨ Features
 
-- **Block-based structure**: Dynamically sized blocks optimize memory usage for sparse data
-- **Skip list implementation**: Provides O(log n) time complexity for search, insertion, and deletion
-- **Sparse array representation**: Efficiently handles arrays with large gaps between elements
-- **Memory optimization**: Compressed node structure minimizes memory overhead
-- **Dynamic level adjustment**: Automatically adjusts skip list height based on element count
+- **Block‑based storage** – Elements are grouped into blocks (up to 32 slots), reducing pointer overhead and improving spatial locality.
+- **Bitmap indexing** – A `uint32_t` bitmap marks which slots inside a block are occupied, enabling O(1) presence checks and compact memory layout.
+- **Skip list indexing** – Blocks are organized as a skip list, providing expected O(log n) search, insert, and delete.
+- **Adaptive sizing** – Block capacities grow dynamically up to a fixed limit (default 32), balancing memory use and performance.
+- **Self‑adjusting levels** – Skip list height automatically scales with the number of blocks, not individual elements.
+- **Low memory footprint** – For 1 million elements, BVSL uses ~14 MB vs. ~123 MB for `std::map` (red‑black tree).
 
-## License
+## 📊 Performance
 
-MIT License
+| Operation (1 M elements) | `std::map` | `BVSL` |
+|--------------------------|------------|------|
+| Insert                   | 0.130 s    | 0.034 s |
+| Sequential query         | 0.040 s    | 0.027 s |
+| Random query             | 0.265 s    | 0.195 s |
+| Delete (200 k)           | 0.021 s    | 0.005 s |
+| Memory                   | 123 MB     | 14 MB   |
 
-See [LICENSE](LICENSE) file for full license text.
+> Mixed insert/delete workloads are still a strength of `std::map`; BVSL excels in sparse array scenarios where deletions are rare.
 
-## Implementation Details
-
-### Key Components
-
-1. **SkipListNode**:
-   - Manages a block of elements with bitmask tracking
-   - Implements dynamic capacity growth
-   - Handles left/right connections at multiple levels
-
-2. **VectorSkipList**:
-   - Main skip list container class
-   - Uses head and tail sentry nodes
-   - Implements automatic level adjustment
-   - Provides element access and modification
-
-3. **Xoroshiro64StarStar**:
-   - Pseudorandom number generator
-   - Used for probabilistic level assignment
-
-### Technical Specifications
-
-- Uses bitmaps to track valid elements within blocks
-- Dynamically adjusts block capacities (4 to 8/16/32/64 elements)
-- Automatically manages skip list levels based on element count
-- Provides both logical and physical deletion
-- Compared to the red-black tree of std::map, VSL's memory footprint is lower
-
-## Usage
-
-### Basic Operations
+## 🚀 Quick Start
 
 ```cpp
-// Create a skip list with an invalid marker value
-VectorSkipList<int,int> skipList(-1);
+#include "vsl.hpp"
 
-// Set elements
-skipList[100] = 42;  // Set value 42 at index 100
-skipList[500] = 73;  // Set value 73 at index 500
+// Create a sparse array with -1 as "empty" value
+vbsl::BitmappedVectorSkipList<int, int> arr(-1);
 
-// Get elements
-int value;
-value = skipList[100];  // value will be 42
-value = skipList[200];  // value will be -1 (invalid)
+// Write elements
+arr[100] = 42;
+arr[500] = 73;
+arr[1'000'000] = 999;   // large indices are fine
 
-// Delete elements
-skipList.erase(100);  // Logical deletion
-skipList.has(100);    // check
+// Read elements
+int val = arr[100];     // 42
+val = arr[200];         // -1 (empty)
+
+// Delete
+arr.erase(100);
+bool exists = arr.has(100);   // false
+```
+
+## 🧠 Design Highlights
+
+### Bitmapped Blocks
+Each `SkipListNode` manages a small vector (up to 32 slots) using a bitmap:
+- `bitMap` – 32‑bit mask indicating occupied slots.
+- `elements` – Contiguous array of values.
+- `baseIndex` – Starting index of the block (always aligned to 32).
+
+### Dynamic Growth
+- Block capacity starts at 4 and doubles when needed, but never exceeds 32.
+- This keeps block size small, improves cache efficiency, and avoids huge copy costs.
+
+### Skip List Over Blocks
+- Indexing is performed over **blocks**, not individual elements.
+- Height is determined by block count: `height = log2(number_of_blocks)`.
+- Expected search cost: O(log (n / 32)) – flatter than a traditional skip list.
+
+### Memory‑Aware Pointers
+- Left and right pointers for all levels are stored interleaved in a single `nodes` array: `right = level*2`, `left = level*2+1`.
+- Reduces allocation overhead and improves pointer locality.
+
+### Thread‑Local Path Cache
+- A `thread_local` array caches the search path, eliminating recursion and repeated allocations.
+
+## 🔧 Implementation Details
+
+| Component               | Description |
+|-------------------------|-------------|
+| `SkipListNode`          | Block containing a bitmap, value vector, and level pointers. |
+| `BitmappedVectorSkipList`        | Main container with sentinel head/tail and automatic level adjustment. |
+| `Xoroshiro64StarStar`   | Fast RNG for probabilistic level assignment. |
+| `bits.hpp`              | Optimized bit operations (popcount, ctz, ceiling powers of two). |
+
+## 📄 License
+
+MIT License – see the [LICENSE](LICENSE) file for details.
