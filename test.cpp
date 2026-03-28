@@ -247,7 +247,7 @@ void test_performance_random_stdmap(uint64_t seedA, uint64_t seedB) {
     auto start_map_write_delete = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < N; ++i) {
         seed = seed * a + c;
-        uint64_t idx = seed;
+        uint64_t idx = seed % N;
         if (i % 2 == 0) m[idx] = static_cast<int>(i);
         else m.erase(idx);
     }
@@ -278,7 +278,7 @@ void test_performance_random_bsl(uint64_t seedA, uint64_t seedB) {
     auto start_bsl_write_delete = std::chrono::high_resolution_clock::now();
     for (uint64_t i = 0; i < N; ++i) {
         seed = seed * a + c;
-        uint64_t idx = seed;
+        uint64_t idx = seed % N;
         if (i % 2 == 0) skiplist[idx] = static_cast<int>(i);
         else skiplist.erase(idx);
     }

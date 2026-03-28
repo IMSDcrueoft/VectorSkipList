@@ -360,7 +360,7 @@ namespace bbsl {
 				right->setLeftNode(i, left);
 			}
 
-			this->nodePool.deallocate_no_destruct(node);
+			this->nodePool.deallocate(node);
 			//delete node;
 			--this->width;
 
