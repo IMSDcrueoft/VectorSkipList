@@ -662,6 +662,73 @@ void test_stdmap_traversal_performance() {
     assert(sum1 == sum2 && sum2 == sum3);
 }
 
+void test_vector_traversal_performance() {
+    const uint64_t N = testCount;
+    std::vector<int> v;
+
+    // Insert dense data
+    v.reserve(N); // Pre-allocate to avoid reallocation during insertion
+    for (uint64_t i = 0; i < N; ++i) {
+        v.push_back(static_cast<int>(i));
+    }
+
+    std::cout << "\n========== std::vector Traversal Performance ==========\n";
+    std::cout << "Data: " << N << " dense elements\n";
+
+    // Test 1: Iterator
+    auto start = std::chrono::high_resolution_clock::now();
+    long long sum1 = 0;
+    for (auto it = v.begin(); it != v.end(); ++it) {
+        sum1 += *it;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double time_iterator = (end - start).count() / 1e9;
+    std::cout << "[std::vector] Iterator: " << time_iterator << "s, sum=" << sum1 << std::endl;
+
+    // Test 2: Range-based for
+    start = std::chrono::high_resolution_clock::now();
+    long long sum2 = 0;
+    for (const auto& element : v) {
+        sum2 += element;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_range = (end - start).count() / 1e9;
+    std::cout << "[std::vector] Range-for: " << time_range << "s, sum=" << sum2 << std::endl;
+
+    // Test 3: Index-based access
+    start = std::chrono::high_resolution_clock::now();
+    long long sum3 = 0;
+    for (uint64_t i = 0; i < N; ++i) {
+        sum3 += v[i];
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_indexed = (end - start).count() / 1e9;
+    std::cout << "[std::vector] Indexed Access: " << time_indexed << "s, sum=" << sum3 << std::endl;
+
+    // Test 4: Reverse iterator
+    start = std::chrono::high_resolution_clock::now();
+    long long sum4 = 0;
+    for (auto rit = v.rbegin(); rit != v.rend(); ++rit) {
+        sum4 += *rit;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_reverse = (end - start).count() / 1e9;
+    std::cout << "[std::vector] Reverse Iterator: " << time_reverse << "s, sum=" << sum4 << std::endl;
+
+    // Test 5: At() method (bounds checked)
+    start = std::chrono::high_resolution_clock::now();
+    long long sum5 = 0;
+    for (uint64_t i = 0; i < N; ++i) {
+        sum5 += v.at(i);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    double time_at = (end - start).count() / 1e9;
+    std::cout << "[std::vector] At() Access: " << time_at << "s, sum=" << sum5 << std::endl;
+
+    // Verify all sums are equal
+    assert(sum1 == sum2 && sum2 == sum3 && sum3 == sum4 && sum4 == sum5);
+}
+
 int main() {
     // Basic functionality tests
     test1();
@@ -701,6 +768,7 @@ int main() {
     test_traversal_performance();
     test_sparse_traversal_performance();
     test_stdmap_traversal_performance();
+    test_vector_traversal_performance();
 
     return 0;
 }
