@@ -370,9 +370,6 @@ namespace bbsl {
 			constexpr auto minLevel = 6;
 			if (this->level < minLevel || this->width >((1ULL << this->level) - (1ULL << minLevel))) return;
 			this->decreaseLevel();
-
-			// remind: we set path node after remove, so we never get invalid path node0
-			this->leftPathNodes[0] = nullptr;
 		}
 	public:
 		/**
