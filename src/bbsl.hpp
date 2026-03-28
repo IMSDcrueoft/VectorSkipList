@@ -214,7 +214,7 @@ namespace bbsl {
 		};
 
 	protected:
-		mutable SkipListNode* leftPathNodes[32];
+		mutable SkipListNode* leftPathNodes[32] = { nullptr };
 		slab::ObjectPool<SkipListNode> nodePool;
 		bbsl::Xoroshiro64StarStar rng;
 
@@ -326,8 +326,8 @@ namespace bbsl {
 
 			//sentry level is ennough right now
 			for (auto i = 0; i <= level; ++i) {
-				// must call findLeftNode before insertNode, so leftPathNodes is valid
-				left = leftPathNodes[i];
+				// must call findLeftNode before insertNode, so leftPathNodes are valid
+				left = this->leftPathNodes[i];
 				right = left->getRightNode(i);
 
 				newNode->setLeftNode(i, left);
@@ -352,7 +352,8 @@ namespace bbsl {
 			SkipListNode* left = nullptr, * right = nullptr;
 
 			for (auto i = 0; i <= node->level; ++i) {
-				left = (leftPathNodes[i] != node) ? leftPathNodes[i] : node->getLeftNode(i);
+				// must call findLeftNode before removeNode, so leftPathNodes are valid
+				left = (this->leftPathNodes[i] != node) ? this->leftPathNodes[i] : node->getLeftNode(i);
 				right = node->getRightNode(i);
 
 				left->setRightNode(i, right);
@@ -366,6 +367,9 @@ namespace bbsl {
 			constexpr auto minLevel = 6;
 			if (this->level < minLevel || this->width >((1ULL << this->level) - (1ULL << minLevel))) return;
 			this->decreaseLevel();
+
+			// remind: we set path node after remove, so we never get invalid path node0
+			this->leftPathNodes[0] = nullptr;
 		}
 	public:
 		/**
@@ -453,6 +457,17 @@ namespace bbsl {
 		 * @return
 		 */
 		value_t& operator[](const index_t index) {
+			// quick path: we dont need full node path when setting exist element, so we directly find left node[0] and check
+			SkipListNode* cachedNode = this->leftPathNodes[0];
+			if (cachedNode != nullptr && cachedNode != &this->sentryHead && cachedNode->baseIndex <= index && SkipListNode::isIndexValid(index - cachedNode->baseIndex)) {
+				uint8_t offset = static_cast<uint8_t>(index - cachedNode->baseIndex);
+				if (!cachedNode->hasElement(offset)) {
+					cachedNode->setElement(offset, this->invalid);
+				}
+
+				return cachedNode->elements[offset];
+			}
+
 			SkipListNode* node = this->findLeftNode(index);
 
 			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
@@ -478,6 +493,16 @@ namespace bbsl {
 		 * @return
 		 */
 		const value_t& operator[](const index_t index) const {
+			// quick path: we dont need full node path when setting exist element, so we directly find left node[0] and check
+			SkipListNode* cachedNode = this->leftPathNodes[0];
+			if (cachedNode != nullptr && cachedNode != &this->sentryHead && cachedNode->baseIndex <= index && SkipListNode::isIndexValid(index - cachedNode->baseIndex)) {
+				uint8_t offset = static_cast<uint8_t>(index - cachedNode->baseIndex);
+
+				if (cachedNode->hasElement(offset)) {
+					return cachedNode->elements[offset];
+				}
+			}
+
 			SkipListNode* node = this->findLeftNode(index);
 			if (node != &this->sentryHead && node->baseIndex <= index && SkipListNode::isIndexValid(index - node->baseIndex)) {
 				uint8_t offset = static_cast<uint8_t>(index - node->baseIndex);
