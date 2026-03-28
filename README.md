@@ -31,10 +31,10 @@ Each block is a **dynamically sized vector** tracked by a bitmap — offering be
 ## 🚀 Quick Start
 
 ```cpp
-#include "vbsl.hpp"
+#include "bvsl.hpp"
 
 // Create a sparse array with -1 as "empty" value
-vbsl::BitmappedVectorSkipList<int, int> arr(-1);
+bvsl::BitmappedVectorSkipList<int, int> arr(-1);
 
 // Write elements
 arr[100] = 42;
