@@ -214,7 +214,7 @@ namespace bbsl {
 		};
 
 	protected:
-		SkipListNode* leftPathNodes[32];
+		mutable SkipListNode* leftPathNodes[32];
 		slab::ObjectPool<SkipListNode> nodePool;
 		bbsl::Xoroshiro64StarStar rng;
 
