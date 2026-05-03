@@ -5,6 +5,8 @@
 
 A **high‑performance sparse array** that combines skip list indexing with **fixed‑size block storage**. Each block uses a bitmap to track occupied slots and stores elements **inline** — delivering exceptional cache locality and traversal speed.
 
+I designed it to serve as the underlying support for **Arrays** for the **interpreter**, used to avoid performance cliffs caused by switching between dense and sparse modes.
+
 ## ✨ Features
 
 - **Inline block storage** – Elements are stored directly inside each node, eliminating an extra pointer indirection and improving cache efficiency.
